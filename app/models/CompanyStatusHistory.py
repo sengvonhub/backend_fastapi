@@ -3,12 +3,8 @@ from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.models.company import CompanyStatus
 from app.db.base import Base
-
-
-
 class CompanyStatusHistory(Base):
     __tablename__ = "company_status_history"
-
     id = Column(Integer, primary_key=True, autoincrement=True)
     company_id = Column(Integer, ForeignKey("companies.company_id"), nullable=False)
     old_status = Column(Enum(CompanyStatus), nullable=False)

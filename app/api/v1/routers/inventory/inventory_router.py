@@ -32,8 +32,6 @@ category_router       = APIRouter(prefix="/categories",      tags=["Categories"]
 product_router        = APIRouter(prefix="/products",        tags=["Products"])
 stock_movement_router = APIRouter(prefix="/stock-movements", tags=["Stock Movements"])
 invoice_router        = APIRouter(prefix="/invoices",        tags=["Invoices"])
-
-
 # ===========================================================================
 # SUPPLIERS
 # ===========================================================================
