@@ -127,7 +127,6 @@ class AuthService:
         body:      LoginRequest,
         client_ip: str,
     ) -> dict:
-
         user = await self.auth_repo.get_by_username(body.username)
         if not user or not verify_password(body.password, user.password_hash):
             raise UnauthorizedException("Invalid username or password.")
@@ -165,9 +164,9 @@ class AuthService:
             company_id = user.company_id,
             token   = refresh_token,
         )
-
-
+        # =======================================================================
         # ✅ return raw dict — router handles cookie vs body
+        # =======================================================================
         return {
             "access_token":        access_token,
             "refresh_token":       refresh_token,
@@ -187,11 +186,7 @@ class AuthService:
                 "is_manager":    staff.staff_role.is_manager if staff and staff.staff_role else False,
             },
         }
-
-
-
-
-
+    
 
 
 
@@ -239,10 +234,6 @@ class AuthService:
             "staff_id":    staff.staff_id if staff else None,
             "is_manager":  staff.staff_role.is_manager if staff and staff.staff_role else False,
         })
-
-
-
-
         new_refresh_token = create_refresh_token(user.user_id, user.company_id)
         # 6. ✅ Rotate — revoke old, save new
         await self.refresh_repo.rotate(
@@ -251,7 +242,6 @@ class AuthService:
             user_id    = user.user_id,
             company_id = user.company_id,
         )
-
         return {
             "access_token":       new_access_token,
             "refresh_token":      new_refresh_token,

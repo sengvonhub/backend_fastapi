@@ -57,6 +57,10 @@ class ChatService:
                 detail=f"Chat group id={group_id} not found.",
             )
         return group
+    
+
+
+
 
     async def _verify_member(self, group_id: int, staff_id: int, company_id: int) -> None:
         member = await self.repo.get_member(group_id, staff_id, company_id)
@@ -65,9 +69,12 @@ class ChatService:
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You are not a member of this group.",
             )
+        
 
     async def _get_staff(self, staff_id: int, company_id: int):
         staff = await self.staff_repo.get_by_id(staff_id, company_id)
+
+
         if not staff:
             raise HTTPException(404, f"Staff id={staff_id} not found.")
         return staff
@@ -96,6 +103,13 @@ class ChatService:
             group_id=group_id,
             data=data,
         )
+
+    async def _get_user_id(self, staff_id: int, company_id: int) -> int:
+        """Resolve staff_id → users.user_id for FK inserts."""
+        staff = await self.staff_repo.get_by_id(staff_id, company_id)
+        if not staff:
+            raise HTTPException(404, f"Staff id={staff_id} not found.")
+        return staff.user_id
 
     # --------------------------------------------------------------------------
     # NOTIFY GROUP MEMBERS (except sender)
@@ -134,11 +148,19 @@ class ChatService:
     # ==========================================================================
 
     async def create_group(
-        self, data: ChatGroupCreate, user_id: int, company_id: int
+        self, 
+        data: ChatGroupCreate, 
+        user_id: int, 
+        company_id: int
     ):
+        
+        # =========================
+        # check user staff prfile
+        # =========================
         creator_staff = await self.staff_repo.get_by_user_id(user_id, company_id)
         if not creator_staff:
             raise HTTPException(403, "Manager must have a staff profile to create chat.")
+        
 
         group = await self.repo.create_group({
             "company_id": company_id,
@@ -147,9 +169,11 @@ class ChatService:
             "created_by": user_id,
             "is_active":  True,
         })
+
+
+
         if not group:
             raise HTTPException(500, "Group creation failed.")
-
         # Add creator as admin member
         await self.repo.add_member({
             "group_id":   group.group_id,
@@ -158,7 +182,10 @@ class ChatService:
             "is_admin":   True,
         })
 
+        # ===========================
         # Add other members
+        # ===========================
+
         for sid in data.member_ids or []:
             if sid == user_id:
                 continue
@@ -171,7 +198,11 @@ class ChatService:
                 "company_id": company_id,
                 "is_admin":   False,
             })
+
+            # ===========================        
             # Notify each added member
+            # ===========================
+
             await self.notify.send(
                 company_id     = company_id,
                 user_id        = staff.user_id,
@@ -185,6 +216,15 @@ class ChatService:
         await self.repo.commit()
         return group
 
+
+
+
+
+
+
+
+
+
     async def create_direct_chat(
         self,
         data:       DirectMessageCreate,
@@ -193,25 +233,27 @@ class ChatService:
     ):
         if data.staff_id == staff_id:
             raise HTTPException(400, "Cannot create a direct message with yourself.")
-
         target = await self._get_staff(data.staff_id, company_id)
-
         # Return existing DM if already exists
+
+
         existing = await self.repo.find_direct_chat(staff_id, data.staff_id, company_id)
         if existing:
             return existing
-
+        
         me      = await self.staff_repo.get_by_id(staff_id, company_id)
+
+
         dm_name = f"{me.name if me else 'Staff'} & {target.name}"
+
 
         group = await self.repo.create_group({
             "company_id": company_id,
-            "name":       dm_name,
+            "group_name": dm_name,
             "chat_type":  ChatType.direct,
-            "created_by": staff_id,
+            "created_by": me.user_id,
             "is_active":  True,
         })
-
         for sid in [staff_id, data.staff_id]:
             await self.repo.add_member({
                 "group_id":   group.group_id,
@@ -219,9 +261,7 @@ class ChatService:
                 "company_id": company_id,
                 "is_admin":   False,
             })
-
         await self.repo.commit()
-
         # Notify target staff
         if target.user_id:
             sender_name = me.name if me else "Someone"
@@ -236,9 +276,31 @@ class ChatService:
             )
 
         return group
+    
 
-    async def get_my_groups(self, staff_id: int, company_id: int) -> list:
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    async def get_my_groups(
+            self, 
+            staff_id: int, 
+            company_id: int
+        ) -> list:
         return await self.repo.get_my_groups(staff_id, company_id)
+
+
 
 
 
@@ -280,14 +342,18 @@ class ChatService:
             {
                 "member_id":  m.id,
                 "group_id":   m.group_id,
-                "staff_id":   m.staff_id,
+                "user_id":    m.user_id,
                 "company_id": m.company_id,
                 "joined_at":  m.joined_at,
                 "is_admin":   m.is_admin,
-                "staff_name": m.staff.name if m.staff else None,
+                "staff_name": m.user.username if m.user else None,
             }
             for m in members
         ]
+    
+
+
+    
 
     async def add_members(
         self,
@@ -313,7 +379,6 @@ class ChatService:
                 "is_admin":   False,
             })
             added.append(sid)
-
             # Notify each new member
             if staff.user_id:
                 group = await self.repo.get_group_by_id(group_id, company_id)
@@ -378,11 +443,14 @@ class ChatService:
     ) -> ChatMessage:
         await self._verify_group(group_id, company_id)
         await self._verify_member(group_id, staff_id, company_id)
+        user_id = await self._get_user_id(staff_id, company_id)
+
 
         if not data.content or not data.content.strip():
             raise HTTPException(400, "Message content cannot be empty.")
-
         # Validate reply target exists if provided
+
+
         if data.reply_to_id:
             replied = await self.repo.get_message_by_id(data.reply_to_id, company_id)
             if not replied:
@@ -391,22 +459,20 @@ class ChatService:
         message = await self.repo.create_message({
             "group_id":     group_id,
             "company_id":   company_id,
-            "sender_id":    staff_id,
+            "sender_id":    user_id,
             "message_type": MessageType.text,
             "content":      data.content,
             "reply_to_id":  getattr(data, "reply_to_id", None),
             "is_deleted":   False,
             "is_read":      False,
         })
-
         staff_name = await self._staff_name(staff_id, company_id)
-
         # Publish real-time WebSocket event
         await self._publish(group_id, {
             "event":        "new_message",
             "message_id":   message.message_id,
             "group_id":     group_id,
-            "sender_id":    staff_id,
+            "sender_id":    user_id,
             "sender_name":  staff_name,
             "message_type": "text",
             "content":      data.content,
@@ -415,18 +481,20 @@ class ChatService:
             "is_read":      False,
             "created_at":   str(message.timestamp),
         })
-
         # Notify offline members via notification system
         await self._notify_group_members(
             group_id    = group_id,
             company_id  = company_id,
-            sender_id   = staff_id,
+            sender_id   = user_id,
             sender_name = staff_name,
             title       = f"New message from {staff_name}",
-            message     = data.content[:80],   # truncate for preview
+            message     = data.content[:80],  
         )
-
         return message
+    
+
+
+
 
     # ==========================================================================
     # MESSAGES — IMAGE
@@ -442,16 +510,16 @@ class ChatService:
     ) -> ChatMessage:
         await self._verify_group(group_id, company_id)
         await self._verify_member(group_id, staff_id, company_id)
+        user_id = await self._get_user_id(staff_id, company_id)
 
         result = await storage.upload_image(
             file=file,
             folder=f"chat/{company_id}/{group_id}/images",
         )
-
         message = await self.repo.create_message({
             "group_id":     group_id,
             "company_id":   company_id,
-            "sender_id":    staff_id,
+            "sender_id":    user_id,
             "message_type": MessageType.image,
             "content":      None,
             "file_url":     result["secure_url"],
@@ -462,14 +530,12 @@ class ChatService:
             "is_deleted":   False,
             "is_read":      False,
         })
-
         staff_name = await self._staff_name(staff_id, company_id)
-
         await self._publish(group_id, {
             "event":        "new_message",
             "message_id":   message.message_id,
             "group_id":     group_id,
-            "sender_id":    staff_id,
+            "sender_id":    user_id,
             "sender_name":  staff_name,
             "message_type": "image",
             "file_url":     result["secure_url"],
@@ -486,7 +552,7 @@ class ChatService:
         await self._notify_group_members(
             group_id    = group_id,
             company_id  = company_id,
-            sender_id   = staff_id,
+            sender_id   = user_id,
             sender_name = staff_name,
             title       = f"{staff_name} sent an image",
             message     = f"📷 {file.filename}",
@@ -508,16 +574,17 @@ class ChatService:
     ) -> ChatMessage:
         await self._verify_group(group_id, company_id)
         await self._verify_member(group_id, staff_id, company_id)
+        user_id = await self._get_user_id(staff_id, company_id)
+
 
         result = await storage.upload_video(
             file=file,
             folder=f"chat/{company_id}/{group_id}/videos",
         )
-
         message = await self.repo.create_message({
             "group_id":       group_id,
             "company_id":     company_id,
-            "sender_id":      staff_id,
+            "sender_id":      user_id,
             "message_type":   MessageType.video,
             "content":        None,
             "file_url":       result["secure_url"],
@@ -529,14 +596,12 @@ class ChatService:
             "is_deleted":     False,
             "is_read":        False,
         })
-
         staff_name = await self._staff_name(staff_id, company_id)
-
         await self._publish(group_id, {
             "event":          "new_message",
             "message_id":     message.message_id,
             "group_id":       group_id,
-            "sender_id":      staff_id,
+            "sender_id":      user_id,
             "sender_name":    staff_name,
             "message_type":   "video",
             "file_url":       result["secure_url"],
@@ -552,7 +617,7 @@ class ChatService:
         await self._notify_group_members(
             group_id    = group_id,
             company_id  = company_id,
-            sender_id   = staff_id,
+            sender_id   = user_id,
             sender_name = staff_name,
             title       = f"{staff_name} sent a video",
             message     = f"🎥 {file.filename}",
@@ -570,11 +635,13 @@ class ChatService:
         file:        UploadFile,
         staff_id:    int,
         company_id:  int,
-        is_voice:    bool = False,     # True = voice note, False = audio file
+        is_voice:    bool = False,    
         reply_to_id: int | None = None,
     ) -> ChatMessage:
         await self._verify_group(group_id, company_id)
         await self._verify_member(group_id, staff_id, company_id)
+        user_id = await self._get_user_id(staff_id, company_id)
+
 
         result = await storage.upload_video(    # Cloudinary: audio = video resource
             file=file,
@@ -586,7 +653,7 @@ class ChatService:
         message = await self.repo.create_message({
             "group_id":      group_id,
             "company_id":    company_id,
-            "sender_id":     staff_id,
+            "sender_id":     user_id,
             "message_type":  msg_type,
             "content":       None,
             "file_url":      result["secure_url"],
@@ -606,7 +673,7 @@ class ChatService:
             "event":         "new_message",
             "message_id":    message.message_id,
             "group_id":      group_id,
-            "sender_id":     staff_id,
+            "sender_id":     user_id,
             "sender_name":   staff_name,
             "message_type":  msg_type.value,
             "file_url":      result["secure_url"],
@@ -624,7 +691,7 @@ class ChatService:
         await self._notify_group_members(
             group_id    = group_id,
             company_id  = company_id,
-            sender_id   = staff_id,
+            sender_id   = user_id,
             sender_name = staff_name,
             title       = f"{staff_name} sent a {label}",
             message     = f"🎙 {label}",
@@ -646,6 +713,8 @@ class ChatService:
     ) -> ChatMessage:
         await self._verify_group(group_id, company_id)
         await self._verify_member(group_id, staff_id, company_id)
+        user_id = await self._get_user_id(staff_id, company_id)
+
 
         result = await storage.upload_file(
             file=file,
@@ -655,7 +724,7 @@ class ChatService:
         message = await self.repo.create_message({
             "group_id":     group_id,
             "company_id":   company_id,
-            "sender_id":    staff_id,
+            "sender_id":    user_id,
             "message_type": MessageType.file,
             "content":      None,
             "file_url":     result["secure_url"],
@@ -673,7 +742,7 @@ class ChatService:
             "event":        "new_message",
             "message_id":   message.message_id,
             "group_id":     group_id,
-            "sender_id":    staff_id,
+            "sender_id":    user_id,
             "sender_name":  staff_name,
             "message_type": "file",
             "file_url":     result["secure_url"],
@@ -688,7 +757,7 @@ class ChatService:
         await self._notify_group_members(
             group_id    = group_id,
             company_id  = company_id,
-            sender_id   = staff_id,
+            sender_id   = user_id,
             sender_name = staff_name,
             title       = f"{staff_name} sent a file",
             message     = f"📎 {file.filename}",
@@ -705,13 +774,14 @@ class ChatService:
         group_id:   int,
         staff_id:   int,
         company_id: int,
-        skip:       int = 0,
+        before_id:  int | None = None,
         limit:      int = 50,
     ) -> list:
         await self._verify_group(group_id, company_id)
-        await self._verify_member(group_id, staff_id, company_id)
+        user_id = await self._get_user_id(staff_id, company_id)
 
-        messages = await self.repo.get_messages(group_id, company_id, skip, limit)
+
+        messages = await self.repo.get_messages(group_id, company_id, before_id, limit)
 
         return [
             {
@@ -719,7 +789,7 @@ class ChatService:
                 "group_id":      m.group_id,
                 "company_id":    m.company_id,
                 "sender_id":     m.sender_id,
-                "sender_name":   m.sender.name if m.sender else None,
+                "sender_name":   m.sender.full_name if m.sender else None,
                 "message_type":  m.message_type.value,
                 "content":       m.content,
                 "file_url":      m.file_url,
@@ -737,6 +807,7 @@ class ChatService:
                 "is_deleted":    m.is_deleted,
                 "is_read":       m.is_read,
                 "created_at":    m.timestamp,
+                "has_more":        len(messages) == limit,
             }
             for m in messages
         ]
@@ -746,43 +817,59 @@ class ChatService:
     # ==========================================================================
 
     async def mark_message_read(
-        self, message_id: int, staff_id: int, company_id: int
+        self, 
+        message_id: int, 
+        staff_id: int,
+        company_id: int
     ) -> dict:
         message = await self.repo.get_message_by_id(message_id, company_id)
+        user_id = await self._get_user_id(staff_id, company_id)
+
+        
         if not message:
             raise HTTPException(404, f"Message id={message_id} not found.")
-
         await self.repo.mark_message_read(message)
 
         await self._publish(message.group_id, {
             "event":      "message_read",
             "message_id": message_id,
-            "read_by":    staff_id,
+            "read_by":    user_id,
             "group_id":   message.group_id,
         })
-
         return {"message": f"Message id={message_id} marked as read."}
+    
+
 
     async def mark_all_read(
-        self, group_id: int, staff_id: int, company_id: int
+        self, group_id: int, 
+        staff_id: int, 
+        company_id: int
     ) -> dict:
         await self._verify_group(group_id, company_id)
-        count = await self.repo.mark_all_read_in_group(group_id, company_id, staff_id)
+        user_id = await self._get_user_id(staff_id, company_id)
 
+        count = await self.repo.mark_all_read_in_group(
+            group_id, company_id, 
+            user_id
+        )
         await self._publish(group_id, {
             "event":    "all_messages_read",
             "group_id": group_id,
-            "read_by":  staff_id,
+            "read_by":  user_id,
             "count":    count,
         })
-
         return {"message": f"{count} messages marked as read."}
 
     async def get_unread_count(
-        self, group_id: int, staff_id: int, company_id: int
+        self, 
+        group_id: int, 
+        staff_id: int, 
+        company_id: int
     ) -> dict:
         await self._verify_group(group_id, company_id)
-        count = await self.repo.get_unread_count(group_id, company_id, staff_id)
+        user_id = await self._get_user_id(staff_id, company_id)
+
+        count = await self.repo.get_unread_count(group_id, company_id, user_id)
         return {"group_id": group_id, "unread_count": count}
 
     # ==========================================================================
@@ -790,15 +877,19 @@ class ChatService:
     # ==========================================================================
 
     async def delete_message(
-        self, message_id: int, staff_id: int, company_id: int
+        self, 
+        message_id: int, 
+        staff_id: int, 
+        company_id: int
     ) -> dict:
         message = await self.repo.get_message_by_id(message_id, company_id)
+        user_id = await self._get_user_id(staff_id, company_id)
+
         if not message:
             raise HTTPException(404, f"Message id={message_id} not found.")
 
-        if message.sender_id != staff_id:
+        if message.sender_id != user_id:
             raise HTTPException(403, "You can only delete your own messages.")
-
         # Delete Cloudinary asset if present
         await self._delete_cloudinary_asset(message)
 

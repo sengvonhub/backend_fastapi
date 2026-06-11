@@ -26,7 +26,6 @@ class SystemSettingRepository:
             )
         )
         return result.scalar_one_or_none()
-
     async def get_by_key(
         self, key: str, company_id: int
     ) -> SystemSetting | None:
@@ -38,7 +37,6 @@ class SystemSettingRepository:
         )
         return result.scalar_one_or_none()
     
-   
 
     async def bulk_create(
         self,

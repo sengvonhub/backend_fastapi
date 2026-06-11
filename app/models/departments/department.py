@@ -7,7 +7,6 @@ if TYPE_CHECKING:
     from app.models.users.user import User
     from ..company import Company
 
-
 class Department(Base):
     __tablename__ = "departments"
 
@@ -15,8 +14,6 @@ class Department(Base):
     company_id: Mapped[int] = mapped_column(Integer, ForeignKey("companies.company_id"), nullable=False, index=True)
     department_name: Mapped[str] = mapped_column(String(150), nullable=False)  # ← fixed double underscore
     manager_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("users.user_id", use_alter=True, name="fk_department_manager"), nullable=True)
-
-
 
 
 

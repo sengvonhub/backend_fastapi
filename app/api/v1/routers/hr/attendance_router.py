@@ -26,6 +26,9 @@ attendance_router = APIRouter(prefix="/attendance", tags=["Attendance"])
 # Requires valid access_token (require_login)
 # ===========================================================================
 
+
+
+
 @attendance_router.post(
     "/scan/authenticate",
     response_model=ScanTokenResponse,
@@ -41,15 +44,12 @@ async def scan_authenticate(
     scan_token is then used for check-in/check-out.
     staff_id comes from JWT — not from request body.
     """
-
-
     staff_id = current_user.get("staff_id")
     if not staff_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only staff accounts can authenticate for scanning.",
         )
-
     return await scan_auth_service(
         password = data.password,
         staff_id = staff_id,
@@ -59,11 +59,13 @@ async def scan_authenticate(
 
 
 
-
 # ===========================================================================
 # STEP 2 — Scan office QR to check in
 # No JWT needed — scan_token carries identity
 # ===========================================================================
+
+
+
 @attendance_router.post(
     "/scan/check-in",
     response_model=ScanResponse,
@@ -85,6 +87,10 @@ async def scan_check_in(
         longitude       = data.longitude,
         company_id      = data.company_id,   
     )
+
+
+
+
 
 
 @attendance_router.post(
@@ -109,9 +115,14 @@ async def scan_check_out(
     )
 
 
+
+
+
 # ===========================================================================
 # OFFICE QR — manager generates once, prints on wall
 # ===========================================================================
+
+
 
 @attendance_router.get(
     "/office-qr",
@@ -125,6 +136,9 @@ async def get_office_qr(
     return await service.generate_office_qr()
 
 
+
+
+
 @attendance_router.get(
     "/office-qr/image",
     summary="[Manager] Download office QR as PNG for printing",
@@ -135,11 +149,8 @@ async def download_office_qr(
 ):
     result  = await service.generate_office_qr()
     b64data = result["qr_image"]
-
-    # ✅ handle both "data:image/png;base64,..." and raw base64
     if "," in b64data:
         b64data = b64data.split(",")[1]
-
     img_bytes = base64.b64decode(b64data)
     return StreamingResponse(
         io.BytesIO(img_bytes),
@@ -148,9 +159,17 @@ async def download_office_qr(
     )
 
 
+
+
+
 # ===========================================================================
 # ATTENDANCE RECORDS — static routes before dynamic /{id}
 # ===========================================================================
+
+
+
+
+
 
 @attendance_router.get(
     "/my",
@@ -169,13 +188,16 @@ async def get_my_attendance(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only staff accounts can view attendance.",
         )
-    # ✅ pass company_id
     return await service.get_my_attendance(
         staff_id   = staff_id,
         company_id = current_user["company_id"],
         month      = month,
         year       = year,
     )
+
+
+
+
 
 
 @attendance_router.get(
@@ -203,6 +225,16 @@ async def get_my_monthly_stats(
     )
 
 
+
+
+
+
+
+
+
+
+
+
 @attendance_router.get(
     "/summary/today",
     summary="[Manager] Today attendance summary",
@@ -215,6 +247,14 @@ async def today_summary(
     return await service.get_today_summary(
         company_id=current_user["company_id"]
     )
+
+
+
+
+
+
+
+
 
 
 @attendance_router.get(
@@ -238,6 +278,9 @@ async def get_by_date_range(
     )
 
 
+
+
+
 @attendance_router.get(
     "/",
     response_model=list[AttendanceResponse],
@@ -245,15 +288,19 @@ async def get_by_date_range(
 )
 async def get_all_attendance(
     filter_date:  Optional[date] = Query(None),
+    month:        Optional[int]  = Query(None, ge=1, le=12),  
+    year:         Optional[int]  = Query(None, ge=2000),       
+    staff_id:     Optional[int]  = Query(None),                
     current_user: dict           = Depends(require_manager),
     service:      AttendanceService = Depends(get_attendance_service),
 ):
-    # ✅ pass company_id
     return await service.get_all_attendance(
         company_id  = current_user["company_id"],
         filter_date = filter_date,
+        month       = month,    
+        year        = year,      
+        staff_id    = staff_id,  
     )
-
 
 @attendance_router.get(
     "/{attendance_id}",
@@ -265,7 +312,6 @@ async def get_attendance_by_id(
     current_user:  dict             = Depends(require_manager),
     service:       AttendanceService = Depends(get_attendance_service),
 ):
-    # ✅ pass company_id + dynamic route last
     return await service.get_by_id(
         attendance_id = attendance_id,
         company_id    = current_user["company_id"],

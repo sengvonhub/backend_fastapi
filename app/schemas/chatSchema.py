@@ -31,6 +31,9 @@ class DirectMessageCreate(BaseModel):
     """Create a direct message chat between two staff members."""
     staff_id: int = Field(..., description="staff_id to start DM with")
 
+
+
+
     class Config:
         json_schema_extra = {"example": {"staff_id": 2}}
 
@@ -63,6 +66,7 @@ class RemoveMemberRequest(BaseModel):
 class SendMessageRequest(BaseModel):
     content:      Optional[str] = None
     message_type: MessageType   = MessageType.text
+    reply_to_id: Optional[int] = None
 
     class Config:
         json_schema_extra = {
@@ -71,6 +75,8 @@ class SendMessageRequest(BaseModel):
                 "message_type": "text"
             }
         }
+
+
 
 
 class ChatMessageResponse(BaseModel):

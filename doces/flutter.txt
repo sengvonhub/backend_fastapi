@@ -97,7 +97,6 @@ dio.interceptors.add(
 ```
 
 ---
-
 ## Summary
 ```
 Browser sends cookie automatically    ✅ (built-in, free)

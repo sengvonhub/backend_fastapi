@@ -2,7 +2,7 @@ from .roles import Role
 from .departments import Department
 from .users import User
 from .Salary import Salary,SalaryAdjustment
-from .staffs import AttendanceRecord, LeaveRequest, Staff, StaffRole
+from .staffs import AttendanceRecord, LeaveRequest, Staff, StaffRole, AttendanceSettings, AttendanceSettings
 from .notification import Notification
 from .audit_log import AuditLog
 from .system_setting import SystemSetting
@@ -21,7 +21,7 @@ from .CompanyStatusHistory import CompanyStatusHistory
 __all__ = [
     "Role", "Department", "User", "Company", "RefreshToken", "CompanyStatusHistory",
     "Staff", "StaffRole", "Salary", "SalaryAdjustment",
-    "LeaveRequest", "AttendanceRecord", "Notification",
+    "LeaveRequest", "AttendanceRecord", "AttendanceSettings", "Notification", "AttendanceSettings",
     "AuditLog", "SystemSetting",
     "Supplier", "Customer", "Category", "Product", "StockMovement" , "ProductImage",
     "Invoice", "InvoiceItem", "InvoiceAttachment",

@@ -38,17 +38,9 @@ class Staff(Base):
     address:       Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     email:         Mapped[Optional[str]]= mapped_column(String(255), nullable=True)
     phone:         Mapped[Optional[str]]= mapped_column(String(20),  nullable=True)
-    
-
-
-    
     #  add avatar fields
     avatar_url:    Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     avatar_public_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-
-
-
-
     created_at:    Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
 
@@ -56,15 +48,35 @@ class Staff(Base):
     company:    Mapped["Company"]            = relationship("Company",   back_populates="staff")
     user:       Mapped["User"]               = relationship("User",      back_populates="staff")
 
-    staff_role: Mapped[Optional["StaffRole"]]= relationship("StaffRole", back_populates="staff_members")
 
-    salaries:           Mapped[list["Salary"]]          = relationship("Salary",           back_populates="staff",    foreign_keys="Salary.staff_id")
-    leave_requests:     Mapped[list["LeaveRequest"]]    = relationship("LeaveRequest",     back_populates="staff",    foreign_keys="LeaveRequest.staff_id")
-    # ✅ FIX 2: added approved_leaves — staff can approve other staff leaves
+    staff_role: Mapped[Optional["StaffRole"]]= relationship("StaffRole", back_populates="staff_members")
+    salaries:           Mapped[list["Salary"]]          = relationship("Salary",           back_populates="staff",    foreign_keys="Salary.staff_id", cascade="all, delete-orphan",passive_deletes=True,)
+    leave_requests:     Mapped[list["LeaveRequest"]]    = relationship("LeaveRequest",     back_populates="staff",    foreign_keys="LeaveRequest.staff_id", cascade="all, delete-orphan", passive_deletes=True)
+
+    
     approved_leaves:    Mapped[list["LeaveRequest"]]    = relationship("LeaveRequest",     back_populates="approver", foreign_keys="LeaveRequest.approved_by")
-    attendance_records: Mapped[list["AttendanceRecord"]]= relationship("AttendanceRecord", back_populates="staff")
+
+
+    attendance_records: Mapped[list["AttendanceRecord"]]= relationship("AttendanceRecord", back_populates="staff", cascade="all, delete-orphan", passive_deletes=True)
     invoices:           Mapped[list["Invoice"]]         = relationship("Invoice",          back_populates="staff")
+  
+  
+  
+  
     # ✅ FIX 3: added chat relationships
-    chat_group_members: Mapped[List["ChatGroupMember"]] = relationship("ChatGroupMember",  back_populates="staff")    
+    # chat_group_members: Mapped[List["ChatGroupMember"]] = relationship("ChatGroupMember",  back_populates="staff", cascade="all, delete-orphan")    
     # in company.py — make sure back_populates matches
   
+
+
+# AttendanceRecord  -> staff_id
+# Salary            -> staff_id
+# LeaveRequest      -> staff_id
+# Invoice           -> staff_id
+
+
+
+# ChatGroupMember   -> user_id
+# ChatMessage       -> user_id
+# Notification      -> user_id
+# RefreshToken      -> user_id

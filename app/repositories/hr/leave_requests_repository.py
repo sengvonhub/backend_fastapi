@@ -84,8 +84,8 @@ class LeaveRequestRepository:
         company_id: int,
         skip:       int = 0,
         limit:      int = 50,
-        status:     Optional[LeaveStatus] = None,  # ✅ was Optional[LeaveType]
-        leave_type: Optional[LeaveType]   = None,  # ✅ was Optional[LeaveRequest]
+        status:     Optional[LeaveStatus] = None, 
+        leave_type: Optional[LeaveType]   = None,  
     ) -> List[LeaveRequest]:
         query = (
             select(LeaveRequest)
@@ -109,6 +109,9 @@ class LeaveRequestRepository:
 
         result = await self.db.execute(query)
         return result.unique().scalars().all()
+    
+
+
 
     # =========================================================================
     # GET PENDING — manager approval queue

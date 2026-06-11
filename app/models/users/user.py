@@ -5,6 +5,7 @@ from datetime import datetime
 from typing import Optional, TYPE_CHECKING
 import enum
 from app.db.base import Base
+from app.models.chat.chat_group_member import ChatGroupMember
 if TYPE_CHECKING:
     from app.models.departments.department import Department
     from app.models.roles.role import Role
@@ -31,16 +32,17 @@ class User(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
 
 
-
-
     # Relationships
     company:             Mapped["Company"]              = relationship("Company",     back_populates="users")
     role:                Mapped["Role"]                 = relationship("Role",        back_populates="users")
     department:          Mapped[Optional["Department"]] = relationship("Department",  foreign_keys=[department_id],        back_populates="users")
     managed_departments: Mapped[list["Department"]]     = relationship("Department",  foreign_keys="Department.manager_id", back_populates="manager")
+    # ////////////
+    chat_group_members: Mapped[list["ChatGroupMember"]] = relationship( "ChatGroupMember", back_populates="user",  passive_deletes=True)
+    # /////////
     staff:               Mapped[Optional["Staff"]]      = relationship("Staff",       back_populates="user", uselist=False)
     audit_logs:          Mapped[list["AuditLog"]]       = relationship("AuditLog",    back_populates="user")
     notifications:       Mapped[list["Notification"]]   = relationship("Notification", back_populates="user")
     sent_messages:       Mapped[list["ChatMessage"]]    = relationship("ChatMessage", foreign_keys="ChatMessage.sender_id",   back_populates="sender")
     received_messages:   Mapped[list["ChatMessage"]]    = relationship("ChatMessage", foreign_keys="ChatMessage.receiver_id", back_populates="receiver")
-    refreshtokens:       Mapped[list["RefreshToken"]]  = relationship("RefreshToken", back_populates="user")
+    refreshtokens:       Mapped[list["RefreshToken"]]  = relationship("RefreshToken", back_populates="user", cascade="all, delete-orphan",  passive_deletes=True)

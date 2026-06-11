@@ -22,7 +22,7 @@ class LeaveStatus(str, enum.Enum):
     pending   = "pending"
     approved  = "approved"
     rejected  = "rejected"
-    cancelled = "cancelled"  # ✅ FIX 1: "cancell" typo → "cancelled"
+    cancelled = "cancelled"
 
 
 class LeaveRequest(Base):
@@ -30,13 +30,13 @@ class LeaveRequest(Base):
 
     leave_id:   Mapped[int]          = mapped_column(Integer, primary_key=True, autoincrement=True)
     company_id: Mapped[int]          = mapped_column(Integer, ForeignKey("companies.company_id"), nullable=False, index=True)
-    staff_id:   Mapped[int]          = mapped_column(Integer, ForeignKey("staff.staff_id"),       nullable=False)
+    staff_id:   Mapped[int]          = mapped_column(Integer, ForeignKey("staff.staff_id", ondelete="CASCADE"),       nullable=False)
     leave_type: Mapped[LeaveType]    = mapped_column(Enum(LeaveType),   nullable=False)
     start_date: Mapped[date]         = mapped_column(Date, nullable=False)
     end_date:   Mapped[date]         = mapped_column(Date, nullable=False)
     reason:     Mapped[Optional[str]]= mapped_column(Text, nullable=True)
     status:     Mapped[LeaveStatus]  = mapped_column(Enum(LeaveStatus), default=LeaveStatus.pending)
-    approved_by: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("staff.staff_id"), nullable=True)
+    approved_by: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("staff.staff_id", ondelete="SET NULL"), nullable=True)
     # created_at:  Mapped[datetime]      = mapped_column(DateTime, default=func.now(), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
 

@@ -31,14 +31,7 @@ async def create_staff_role(
     current_user: dict             = Depends(require_manager),
     service:      StaffRoleService = Depends(get_staff_role_service),
 ):
-    # ✅ correct method name + company_id from JWT
     return await service.create(data, company_id=current_user["company_id"])
-
-
-
-
-
-
 
 
 
@@ -51,11 +44,7 @@ async def get_all_staff_roles(
     current_user: dict             = Depends(require_manager),
     service:      StaffRoleService = Depends(get_staff_role_service),
 ):
-    # ✅ correct method name + company_id
     return await service.get_all(company_id=current_user["company_id"])
-
-
-
 
 @staff_role_router.get(
     "/{staff_role_id}",
@@ -67,8 +56,10 @@ async def get_staff_role(
     current_user:  dict             = Depends(require_manager),
     service:       StaffRoleService = Depends(get_staff_role_service),
 ):
-    # ✅ correct method name + company_id
     return await service.get_by_id(staff_role_id, company_id=current_user["company_id"])
+
+
+
 
 @staff_role_router.patch(
     "/{staff_role_id}",
@@ -97,10 +88,8 @@ async def update_staff_role(
 async def delete_staff_role(
     staff_role_id: int,
     current_user:  dict             = Depends(require_manager),
-    # ✅ was Depends(get_db) — wrong, must be Depends(get_staff_role_service)
     service:       StaffRoleService = Depends(get_staff_role_service),
 ):
-    # ✅ correct method name — was service.create_staff_role(staff_id)
     await service.delete(staff_role_id, company_id=current_user["company_id"])
 
 
@@ -114,17 +103,33 @@ async def delete_staff_role(
     "/",
     response_model=StaffResponse,
     status_code=status.HTTP_201_CREATED,
-    summary="[Manager] Create staff",
+    summary="[Manager || admin || superuser] Create staff",
 )
 async def create_staff(
     data:         StaffCreate,
     current_user: dict         = Depends(require_manager),
-    # ✅ was missing auth
     service:      StaffService = Depends(get_staff_service),
 ):
-    # ✅ correct method name + company_id
     return await service.create(data, company_id=current_user["company_id"])
 
+
+
+
+
+
+@staff_router.get(
+    "/my-staffs",
+    response_model=list[StaffResponse],
+    summary="User: get all my staff profiles",
+)
+async def get_my_staffs(
+    current_user: dict = Depends(require_login),
+    service: StaffService = Depends(get_staff_service),
+):
+    return await service.get_by_user_id_list(
+        user_id=int(current_user["sub"]),
+        company_id=current_user["company_id"],
+    )
 
 
 
@@ -168,15 +173,9 @@ async def get_staff_by_role(
     current_user:  dict         = Depends(require_manager),
     service:       StaffService = Depends(get_staff_service),
 ):
-    # ✅ company_id added
     return await service.get_by_role(
         staff_role_id, company_id=current_user["company_id"]
     )
-
-
-
-
-
 
 
 
@@ -197,6 +196,9 @@ async def get_staff_by_user_id(
 
 
 
+# /////////////////////////////////////////////////////////
+# 
+# ////////////////////////////////////////////////////////
 
 
 
@@ -218,9 +220,6 @@ async def get_staff_by_department(
 
 
 
-
-
-
 @staff_router.get(
     "/my",
     response_model=StaffResponse,
@@ -231,11 +230,20 @@ async def get_my_profile(
     service:      StaffService = Depends(get_staff_service),
 ):
     """Staff can view their own profile using staff_id from JWT."""
-
     return await service.get_by_id(
         staff_id   = int(current_user["staff_id"]),
         company_id = current_user["company_id"],
     )
+
+
+
+
+
+
+
+# ////////////////////////////////////////////////////////////////////
+# 
+# ///////////////////////////////////////////////////////////////////
 
 
 
@@ -293,6 +301,8 @@ async def update_staff(
 
 
 
+
+
 @staff_router.patch("/{staff_id}/avatar", response_model=StaffResponse)
 async def update_avatar(
     staff_id:     int,
@@ -309,7 +319,6 @@ async def update_avatar(
 
 
 
-
 @staff_router.delete(
     "/{staff_id}",
     status_code=status.HTTP_200_OK,
@@ -320,5 +329,4 @@ async def delete_staff(
     current_user: dict         = Depends(require_manager),
     service:      StaffService = Depends(get_staff_service),
 ):
-    # ✅ correct method name + company_id
     return await service.delete(staff_id, company_id=current_user["company_id"])

@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 from typing import Optional, List, Dict, Any
 from datetime import datetime, date, time
 from decimal import Decimal
@@ -49,6 +49,7 @@ class NotificationTypeEnum(str, Enum):
     warning = "warning"
     error   = "error"
     success = "success"
+    chat    = "chat"
 
 
 class MovementTypeEnum(str, Enum):
@@ -160,17 +161,24 @@ class ScanTokenResponse(BaseModel):
 
 
 class ScanRequest(BaseModel):
-    scan_token:      str
+    scan_token: str
     office_qr_token: str
-    latitude:        str
-    longitude:       str
-    company_id:      str
+    latitude: str
+    longitude: str
+    company_id: int
+
+
+    
 
 
 class ScanResponse(BaseModel):
     attendance:      "AttendanceResponse"
     distance_meters: float
     message:         str
+    model_config = ConfigDict(from_attributes=True)
+
+
+
 
 
 class OfficeQRResponse(BaseModel):
@@ -190,10 +198,12 @@ class RegisterRequest(BaseModel):
     role_id:       int
     department_id: Optional[int] = None
 
+
     @field_validator('username')
     @classmethod
     def username_alphanumeric(cls, v):
-        assert v.isalnum(), 'must be alphanumeric'
+        import re
+        assert re.match(r'^[\w]+$', v, re.UNICODE), 'must be alphanumeric'
         return v
 
 
@@ -250,6 +260,7 @@ class UserBase(BaseModel):
     role_id:       Optional[int]        = None
     status:        UserStatus = UserStatus.active
 
+
 class UserCreate(UserBase):
     password: str = Field(..., min_length=8)
 
@@ -262,33 +273,9 @@ class UserUpdate(BaseModel):
     # avatar_public_id: Optional[str] = None
     status:        Optional[UserStatus] = None
 
-
-
-
-class UserResponse(BaseModel):
-    user_id: int
-    username: str
-    full_name: str
-    status: UserStatus
-
-    department_id: Optional[int] = None
-    role_id: Optional[int] = None
-
-    department: Optional[DepartmentSimple] = None
-    role: Optional[RoleSimple] = None
-
-    avatar_url: Optional[str] = None
-    avatar_public_id: Optional[str] = None
-    created_at: datetime
-    updated_at: Optional[datetime] = None
-
     model_config = {
         "from_attributes": True
     }
-
-
-
-
 
 class TokenResponse(BaseModel):
     access_token: str
@@ -308,8 +295,6 @@ class RoleBase(BaseModel):
 class RoleCreate(RoleBase):
     company_id: int
 
-
-
 class RoleUpdate(BaseModel):
     role_name: Optional[str] = Field(None, min_length=2, max_length=100)
 
@@ -327,6 +312,10 @@ class RoleResponse(BaseModel):
 # ============================================================================
 
 
+# ============================================================================
+# Staff
+# ============================================================================
+
 class StaffRoleCreate(BaseModel):
     role_name:   str            = Field(..., min_length=2, max_length=100)
     description: Optional[str] = Field(None, max_length=500)
@@ -343,12 +332,67 @@ class StaffRoleUpdate(BaseModel):
 
 class StaffRoleResponse(StaffRoleCreate):
     staff_role_id: int
-    company_id: int
+    company_id:    int
     created_at:    datetime
 
     class Config:
         from_attributes = True
 
+
+class UserSimple(BaseModel):
+    user_id:    int
+    username:   str
+    full_name:  str
+    avatar_url: Optional[str] = None
+    status:     UserStatus
+
+    class Config:
+        from_attributes = True
+
+
+# ✅ MOVED UP — must be before UserResponse
+class StaffBase(BaseModel):
+    user_id:       Optional[int] = None
+    staff_role_id: Optional[int] = None
+    name:          str = Field(..., min_length=2, max_length=150)
+    gender:        Optional[GenderEnum] = None
+    date_of_birth: Optional[date] = None
+    address:       Optional[str] = None
+    email:         Optional[EmailStr] = None
+    phone:         Optional[str] = Field(None, pattern=r"^\+?[0-9]{7,20}$")
+
+
+class StaffResponse(StaffBase):
+    staff_id:         int
+    company_id:       int
+    age:              Optional[int]              = None
+    avatar_url:       Optional[str]              = None
+    avatar_public_id: Optional[str]              = None
+    created_at:       datetime
+    staff_role:             Optional[StaffRoleResponse] = None  # ✅
+    user:             Optional[UserSimple]        = None  # ✅
+
+    class Config:
+        from_attributes = True
+
+
+# ✅ NOW works — StaffResponse defined above
+class UserResponse(BaseModel):
+    user_id:          int
+    username:         str
+    full_name:        str
+    status:           UserStatus
+    department_id:    Optional[int]              = None
+    role_id:          Optional[int]              = None
+    department:       Optional[DepartmentSimple] = None
+    role:             Optional[RoleSimple]       = None  # ✅ User.role
+    avatar_url:       Optional[str]              = None
+    avatar_public_id: Optional[str]              = None
+    created_at:       datetime
+    updated_at:       Optional[datetime]         = None
+    staff:            Optional[StaffResponse]    = None
+
+    model_config = {"from_attributes": True}
 
 # ============================================================================
 # DEPARTMENT SCHEMAS
@@ -382,7 +426,7 @@ class DepartmentResponse(DepartmentBase):
 
 class StaffBase(BaseModel):
     user_id: Optional[int] = None
-    company_id: int
+    # company_id: int
     staff_role_id: Optional[int] = None
     name: str = Field(..., min_length=2, max_length=150)
     gender: Optional[GenderEnum] = None 
@@ -394,6 +438,8 @@ class StaffBase(BaseModel):
 
 class StaffCreate(StaffBase):
     pass
+
+
 
 class StaffUpdate(StaffBase):
     full_name: Optional[str] = Field(None, min_length=2, max_length=150)
@@ -409,9 +455,7 @@ class StaffResponse(StaffBase):
     avatar_public_id: Optional[str] = None
     created_at: datetime
     
-
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class StaffRegisterRequest(BaseModel):
@@ -425,6 +469,9 @@ class StaffRegisterRequest(BaseModel):
     department_id: int
     staff_role_id: Optional[int] = None
     base_salary: Optional[Decimal] = Field(None, ge=0)
+
+
+
 
 # ============================================================================
 # SALARY SCHEMAS
@@ -473,6 +520,15 @@ class SalaryResponse(SalaryBase):
 
     class Config:
         from_attributes = True
+
+
+class SalaryStaffGroupResponse(BaseModel):
+    staff_id: int
+    user_id: int
+    username: str
+    full_name: str
+    salaries: List[SalaryResponse]
+
 
 # ============================================================================
 # SALARY ADJUSTMENT SCHEMAS
@@ -525,6 +581,8 @@ class LeaveRequestBase(BaseModel):
     status:      LeaveStatusEnum          = LeaveStatusEnum.pending
     approved_by: Optional[int]            = None
 
+
+
     @model_validator(mode='after')
     def validate_dates(self):
         if self.start_date and self.end_date:
@@ -548,6 +606,15 @@ class LeaveRequestCreate(BaseModel):
         return self
 
 
+class StaffBasicInfo(BaseModel):
+    staff_id:   int
+    name:       str                  
+    avatar_url: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
 class LeaveRequestUpdate(BaseModel):
     status:      Optional[LeaveStatusEnum] = None
     approved_by: Optional[int]             = None
@@ -555,15 +622,17 @@ class LeaveRequestUpdate(BaseModel):
 
 class LeaveRequestResponse(LeaveRequestBase):
     leave_id:   int
-    staff_id:   int     
+    staff_id:   int
+    company_id: int                        
     created_at: datetime
+    staff:      Optional[StaffBasicInfo] = None  
 
     class Config:
         from_attributes = True
 
 
 class LeaveApprovalRequest(BaseModel):
-    status: LeaveStatusEnum   # ✅ FIX 4: added status field — required for approval
+    status: LeaveStatusEnum   
     reason: Optional[str]     = Field(None, max_length=500)
 
 
@@ -581,13 +650,10 @@ class LeaveRequestListResponse(BaseModel):
 class AttendanceBase(BaseModel):
     staff_id:       int
     date:           date
-    # ✅ FIX 5: time not str — matches PostgreSQL TIME column
     check_in_time:  Optional[time] = None
     check_out_time: Optional[time] = None
     latitude:       Optional[str]  = None
     longitude:      Optional[str]  = None
-
-
 class AttendanceCreate(AttendanceBase):
     pass
 
@@ -595,9 +661,8 @@ class AttendanceCreate(AttendanceBase):
 class AttendanceResponse(AttendanceBase):
     attendance_id: int
     created_at:    datetime
-
-    class Config:
-        from_attributes = True
+    staff: Optional[StaffResponse] = None  
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ============================================================================
@@ -875,6 +940,8 @@ class NotificationBase(BaseModel):
     is_read:        bool                       = False
     reference_id:   Optional[int]              = None
     reference_type: Optional[str]              = Field(None, max_length=50)
+
+
 
 
 class NotificationCreate(NotificationBase):

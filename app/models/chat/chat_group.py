@@ -29,6 +29,8 @@ class ChatGroup(Base):
     is_active:  Mapped[bool]     = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
+
+
     # Relationships
     company: Mapped["Company"]               = relationship("Company",         back_populates="chat_groups")
     creator: Mapped[Optional["User"]]        = relationship("User",            foreign_keys=[created_by])

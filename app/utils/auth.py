@@ -25,12 +25,7 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(bearer_
 
 
     
-def require_login(
-        current_user:  dict = Depends(get_current_user)
-)  ->  dict:
-    """"""
-    if not  current_user:
-        raise UnauthorizedException("Authentication required.")
+def require_login(current_user: dict = Depends(get_current_user)) -> dict:
     return current_user
 
 
@@ -94,13 +89,8 @@ def require_manager(current_user: dict = Depends(require_login), ) -> dict:
 
 
 
-def require_employee(
-        current_user: Dict = Depends(get_current_user),
-
-) -> Dict:
-    """"""
-    if not current_user:
-        raise UnauthorizedException("Authentiaction required.")
+def require_employee(current_user: Dict = Depends(require_login)) -> Dict:
+    """Any authenticated staff member."""
     return current_user
 
 
@@ -116,7 +106,24 @@ def require_permission(permission: str):
 
     return _check
 
-def require_any_permission(permission: List[str]) -> Callable:
-    """"""
+def require_any_permission(permissions: List[str]) -> Callable:
+    """Allow access if user has ANY of the listed permissions."""
+    def _check(current_user: dict = Depends(get_current_user)) -> dict:
+        perms = current_user.get("permissions", [])
+        if "*" in perms or any(p in perms for p in permissions):
+            return current_user
+        raise ForbiddenException(f"One of these permissions required: {permissions}")
+    return _check
+
+
+def require_all_permissions(permissions: List[str]) -> Callable:
+    """User must have ALL listed permissions."""
+    def _check(current_user: dict = Depends(get_current_user)) -> dict:
+        perms = current_user.get("permissions", [])
+        if "*" in perms or all(p in perms for p in permissions):
+            return current_user
+        raise ForbiddenException(f"All of these permissions required: {permissions}")
+    return _check
+
 
 

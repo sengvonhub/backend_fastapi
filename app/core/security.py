@@ -130,6 +130,9 @@ def create_scan_token(staff_id: int) -> str:
     )
 
 
+# ===========================================================================
+# STEP 1 — Re-enter password to get scan token (15 min)
+
 def decode_scan_token(token: str) -> int:
     try:
         payload = jwt.decode(

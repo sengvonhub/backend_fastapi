@@ -20,7 +20,7 @@ class Invoice(Base):
     invoice_id:   Mapped[int]           = mapped_column(Integer, primary_key=True, autoincrement=True)
     company_id:   Mapped[int]           = mapped_column(Integer, ForeignKey("companies.company_id"), nullable=False, index=True)
     customer_id:  Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("customers.customer_id"), nullable=True)
-    staff_id:     Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("staff.staff_id"), nullable=True)
+    staff_id:     Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("staff.staff_id", ondelete="SET NULL"), nullable=True, )
     total_amount: Mapped[float]         = mapped_column(Numeric(14, 2), nullable=False)
     discount:     Mapped[float]         = mapped_column(Numeric(10, 2), default=0)
     tax:          Mapped[float]         = mapped_column(Numeric(10, 2), default=0)

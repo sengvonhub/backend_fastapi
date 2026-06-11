@@ -149,8 +149,6 @@ async def scan_auth_service(
         select(Staff).where(Staff.staff_id == staff_id)
     )
     staff = staff_result.scalar_one_or_none()
-
-
     if not staff:
         raise HTTPException(status_code=404, detail="Staff not found.")
  
@@ -164,9 +162,8 @@ async def scan_auth_service(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect password.",
         )
- 
+
     scan_token = create_scan_token(staff_id=staff_id)
- 
     return {
         "scan_token":      scan_token,
         "expires_in_secs": settings.SCAN_TOKEN_EXPIRE_MINUTES * 60,
@@ -176,5 +173,8 @@ async def scan_auth_service(
             f"You have {settings.SCAN_TOKEN_EXPIRE_MINUTES} minutes to scan."
         ),
     }
+
+
+
 
 

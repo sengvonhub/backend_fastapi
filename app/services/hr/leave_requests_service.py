@@ -79,7 +79,6 @@ class LeaveRequestService:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Start date must be before end date.",
             )
-
         overlapping = await self.leave_repo.get_overlapping(
             staff_id   = staff_id,
             company_id = company_id,
@@ -190,6 +189,9 @@ class LeaveRequestService:
             status     = status,
             leave_type = leave_type,
         )
+
+
+
 
     # =========================================================================
     # GET PENDING

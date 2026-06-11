@@ -58,14 +58,9 @@ class UserService:
         return await self.role_repo.create(data.role_name, company_id)
 
 
-
-
     async def get_all_roles(self, company_id: int) -> list[RoleResponse]:
         return await self.role_repo.get_all(company_id)
     
-
-
-
     async def delete_role(self, role_id: int, company_id: int) -> None:
         deleted = await self.role_repo.delete(role_id, company_id)
         if not deleted:
@@ -92,6 +87,9 @@ class UserService:
             manager_id      = data.manager_id,
         )
 
+   
+   
+   
     async def get_all_departments(
         self, company_id: int
     ) -> list[DepartmentResponse]:
@@ -111,6 +109,8 @@ class UserService:
     # USER CREATE
     # ==========================================================================
 
+
+
     async def create_user(
         self,
         data:                    RegisterRequest,
@@ -119,22 +119,31 @@ class UserService:
         client_ip:               str,
     ) -> RegisterResponse:
 
+
+
+
+        # //////////////////////////////////////////////////////////////
         # ✅ Check username unique globally
+        # /////////////////////////////////////////////////////////////
         existing = await self.user_repo.get_by_username(data.username)
         if existing:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Username already exists.",
             )
+        # //////////////////////////////////////////////////////////////
         # ✅ Verify role belongs to same company
+        # //////////////////////////////////////////////////////////////
         role = await self.role_repo.get_by_id(data.role_id, company_id)
         if not role:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Role id={data.role_id} not found.",
             )
-
+        # //////////////////////////////////////////////////////////////
         # ✅ Verify department belongs to same company (if provided)
+        # //////////////////////////////////////////////////////////////
+
         if data.department_id:
             dept = await self.dept_repo.get_by_id(data.department_id, company_id)
             if not dept:
@@ -143,8 +152,10 @@ class UserService:
                     detail=f"Department id={data.department_id} not found.",
                 )
             
-            
+        # //////////////////////////////////////////////////////////////
         # ✅ Create user — status defaults to active
+        # //////////////////////////////////////////////////////////////
+
         user = await self.user_repo.create(
             company_id    = company_id,
             username      = data.username,
@@ -172,8 +183,10 @@ class UserService:
             },
             ip_address = client_ip,
         )
-
+        # //////////////////////////////////////////////////////////////
         # ✅ Notify new user — welcome message
+        # //////////////////////////////////////////////////////////////
+
         await self.notif.send(
             company_id     = company_id,
             user_id        = user.user_id,
@@ -207,9 +220,6 @@ class UserService:
                 department_id=user.department.department_id,
                 department_name=user.department.department_name
             ) if user.department else None,
-
-            # avatar_url=user.avatar_url,
-            # avatar_public_id=user.avatar_public_id,
             avatar_url=user.staff.avatar_url if user.staff else None,
             avatar_public_id=user.staff.avatar_public_id if user.staff else None,
             created_at=user.created_at,
@@ -227,6 +237,9 @@ class UserService:
         self, company_id: int, skip: int, limit: int
     ) -> list[User]:
         return await self.user_repo.get_all(company_id, skip, limit)
+    
+
+    
 
     async def count(self, company_id: int) -> int:
         return await self.user_repo.count(company_id)
@@ -240,9 +253,13 @@ class UserService:
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found or inactive.",  # ✅ clearer message
+                detail="User not found or inactive.", 
             )
         return user
+    
+    
+
+
 
     # ==========================================================================
     # UPDATE
@@ -251,9 +268,7 @@ class UserService:
     async def update_user(
         self, user_id: int, data: UserUpdate, company_id: int
     ) -> User:
-        user = await self.get_user_by_id(user_id, company_id)  # ✅ raises 404 if not found
-
-        # ✅ Guard: prevent activating/deactivating via update if status not in data
+        user = await self.get_user_by_id(user_id, company_id) 
         updated = await self.user_repo.update(
             user, data.model_dump(exclude_none=True)
         )
@@ -274,6 +289,8 @@ class UserService:
     # ==========================================================================
     # DEACTIVATE  ✅ soft-disable instead of hard delete
     # ==========================================================================
+
+
 
     async def deactivate_user(
         self, user_id: int, company_id: int

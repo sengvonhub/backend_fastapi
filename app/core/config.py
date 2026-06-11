@@ -58,11 +58,9 @@ class Settings(BaseSettings):
     # Office GPS
     # -------------------------------------------------------------------------
     OFFICE_ID:             str
-    OFFICE_LATITUDE:       float = 11.5564
-    OFFICE_LONGITUDE:      float = 104.9282
-    OFFICE_RADIUS_METERS:  int   = 100   # ✅ fixed typo READIUS_METTERS
-
-
+    OFFICE_LATITUDE: float = 11.5016621
+    OFFICE_LONGITUDE: float = 104.8878919
+    OFFICE_RADIUS_METERS:  int   = 5000  
     OFFICE_OPEN_TIME:  str = "09:00"   # office opens
     OFFICE_CLOSE_TIME: str = "17:00" 
 

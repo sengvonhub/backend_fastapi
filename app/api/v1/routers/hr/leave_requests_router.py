@@ -10,11 +10,7 @@ from app.models.staffs.leave_request import LeaveStatus, LeaveType
 from app.services.hr.leave_requests_service import LeaveRequestService, get_leave_service
 from app.utils.auth import require_login, require_manager
 
-
-
-
 leave_router = APIRouter(prefix="/leave-requests", tags=["Leave Requests"])
-
 
 # ===========================================================================
 # STAFF — own leave requests
@@ -26,22 +22,18 @@ leave_router = APIRouter(prefix="/leave-requests", tags=["Leave Requests"])
     status_code=status.HTTP_201_CREATED,
     summary="Staff: submit a leave request",
 )
-
-
 async def create_leave(
     data:         LeaveRequestCreate,
     request:      Request,
     current_user: dict               = Depends(require_login),
     service:      LeaveRequestService = Depends(get_leave_service),
 ):
-    # ✅ verify staff_id exists in JWT
     staff_id = current_user.get("staff_id")
     if not staff_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only staff accounts can submit leave requests.",
         )
-    # ✅ pass company_id
     return await service.create(
         data            = data,
         staff_id        = staff_id,
@@ -49,6 +41,9 @@ async def create_leave(
         current_user_id = int(current_user["sub"]),
         client_ip       = request.client.host,
     )
+
+
+
 
 @leave_router.get(
     "/my",
@@ -67,14 +62,17 @@ async def get_my_leaves(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only staff accounts can view leave requests.",
         )
-
-    # ✅ pass company_id
     return await service.get_my_leaves(
         staff_id   = staff_id,
         company_id = current_user["company_id"],
         skip       = skip,
         limit      = limit,
     )
+
+
+
+
+
 
 
 @leave_router.post(
@@ -95,7 +93,6 @@ async def cancel_leave(
             detail="Only staff accounts can cancel leave requests.",
         )
 
-    # ✅ pass company_id + staff_id for ownership check
     return await service.cancel(
         leave_id        = leave_id,
         company_id      = current_user["company_id"],
@@ -122,7 +119,6 @@ async def get_all_leaves(
     current_user: dict                   = Depends(require_manager),
     service:      LeaveRequestService    = Depends(get_leave_service),
 ):
-    # ✅ pass company_id
     return await service.get_all(
         company_id = current_user["company_id"],
         skip       = skip,
@@ -132,10 +128,12 @@ async def get_all_leaves(
     )
 
 
+
+
 @leave_router.get(
     "/pending",
     response_model=list[LeaveRequestResponse],
-    summary="[Manager] Get pending leave requests",
+    summary="[Manager] Get pending leave requests ||    "  "",
 )
 async def get_pending_leaves(
     skip:         int  = Query(0,  ge=0),
@@ -143,7 +141,6 @@ async def get_pending_leaves(
     current_user: dict = Depends(require_manager),
     service:      LeaveRequestService = Depends(get_leave_service),
 ):
-    # ✅ static route /pending before /{leave_id} to avoid conflict
     return await service.get_pending(
         company_id = current_user["company_id"],
         skip       = skip,
@@ -160,8 +157,9 @@ async def get_summary(
     service:      LeaveRequestService = Depends(get_leave_service),
 ):
     return await service.get_summary(
-        company_id=current_user["company_id"]
-    )
+        company_id=current_user["company_id"])
+
+
 
 
 @leave_router.get(
@@ -172,10 +170,8 @@ async def get_summary(
 async def get_leave_by_id(
     leave_id:     int,
     current_user: dict               = Depends(require_manager),
-    # ✅ auth was commented out — always require auth
     service:      LeaveRequestService = Depends(get_leave_service),
 ):
-    # ✅ pass company_id + correct method name
     return await service.get_by_id(
         leave_id   = leave_id,
         company_id = current_user["company_id"],
@@ -199,8 +195,6 @@ async def approve_leave(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Manager must have a staff record to approve leave.",
         )
-
-    # ✅ pass company_id + approved_by staff_id
     return await service.approve(
         leave_id        = leave_id,
         company_id      = current_user["company_id"],
@@ -208,6 +202,8 @@ async def approve_leave(
         current_user_id = int(current_user["sub"]),
         client_ip       = request.client.host,
     )
+
+
 
 
 @leave_router.patch(
@@ -222,7 +218,6 @@ async def reject_leave(
     current_user: dict               = Depends(require_manager),
     service:      LeaveRequestService = Depends(get_leave_service),
 ):
-    # ✅ pass company_id
     return await service.reject(
         leave_id        = leave_id,
         company_id      = current_user["company_id"],
@@ -243,7 +238,6 @@ async def delete_leave(
     current_user: dict               = Depends(require_manager),
     service:      LeaveRequestService = Depends(get_leave_service),
 ):
-    # ✅ pass company_id
     return await service.delete(
         leave_id        = leave_id,
         company_id      = current_user["company_id"],

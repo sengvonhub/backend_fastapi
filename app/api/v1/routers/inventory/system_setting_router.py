@@ -163,7 +163,6 @@ async def update_setting(
         company_id = current_user["company_id"],
     )
 
-
 @system_setting_router.delete(
     "/{setting_id}",
     summary="[Admin] Delete setting",

@@ -32,10 +32,7 @@ class NotificationWebSocketHandler(BaseWebSocketHandler):
         """Push a notification to every connected staff in a company."""
         await self.broadcast_to_group(group_id=company_id, data=data)
 
-
 # ── Redis Pub/Sub ─────────────────────────────────────────────────────────────
-
-
 
 async def start_notification_pubsub_listener(handler: NotificationWebSocketHandler) -> None:
     """

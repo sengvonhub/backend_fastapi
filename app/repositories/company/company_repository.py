@@ -1,7 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from datetime import datetime
-
 from app.models.company import Company
 from app.models.CompanyStatusHistory import CompanyStatusHistory
 from app.models.staffs.staff import Staff
@@ -27,6 +26,8 @@ class CompanyRepository:
         )
         return result.scalars().all()
     
+
+
 
 
 

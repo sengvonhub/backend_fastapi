@@ -2,6 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select,  delete as sa_delete
 from sqlalchemy.orm import selectinload
 from app.models.notification import Notification
+from app.models.staffs.staff import Staff
 from app.models.users.user import User
 from app.models.roles.role import Role
 from app.models.departments.department import Department
@@ -112,7 +113,10 @@ class UserRepository:
             .options(
                 selectinload(User.role),
                 selectinload(User.department),
-                selectinload(User.staff),  # ← already here ✅
+                selectinload(User.staff).options(      # ✅ chain nested loads
+                    selectinload(Staff.staff_role),    # ✅ was missing
+                    selectinload(Staff.user),          # ✅ was missing
+                ),
             )
             .where(
                 User.user_id    == user_id,
@@ -120,7 +124,7 @@ class UserRepository:
                 user_active(User),
             )
         )
-        return result.scalar_one_or_none()  # ← just return directly, no refresh needed
+        return result.scalar_one_or_none() 
     
 
 
@@ -155,6 +159,9 @@ class UserRepository:
             )
         )
         return result.scalar() or 0
+    
+
+    
 
     async def get_all(
         self,
@@ -167,11 +174,14 @@ class UserRepository:
             .options(
                 selectinload(User.role),
                 selectinload(User.department),
-                selectinload(User.staff),
+                selectinload(User.staff).options(    
+                selectinload(Staff.staff_role),
+                selectinload(Staff.user),
+        ),    # ✅ nested load
             )
             .where(
                 User.company_id == company_id,
-                user_active(User),  # ✅ only return active users
+                user_active(User),  
             )
             .order_by(User.full_name)
             .offset(skip)
@@ -204,8 +214,20 @@ class UserRepository:
             if value is not None:
                 setattr(user, field, value)
         await self.db.commit()
-        await self.db.refresh(user)
-        return user
+
+        result = await self.db.execute(
+            select(User)
+            .options(
+                selectinload(User.role),
+                selectinload(User.department),
+                selectinload(User.staff).options(
+                    selectinload(Staff.staff_role),
+                    selectinload(Staff.user),
+                ),
+            )
+            .where(User.user_id == user.user_id)
+        )
+        return result.scalar_one()
     
 
 
@@ -222,6 +244,9 @@ class UserRepository:
     
 
 
+
+
+
     async def delete(self, user_id: int, company_id: int) -> bool:
         user = await self.get_by_id(user_id, company_id)
         if not user:
@@ -233,7 +258,6 @@ class UserRepository:
                 Notification.user_id == user_id
             )
         )
-
         # Step 2 — delete user
         await self.db.delete(user)
         await self.db.commit()
@@ -298,9 +322,6 @@ class DepartmentRepository:
         )
         return result.scalar_one_or_none()
     
-
-
-
 
     async def get_all(self, company_id: int) -> list[Department]:
         result = await self.db.execute(

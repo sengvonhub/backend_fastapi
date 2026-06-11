@@ -5,34 +5,26 @@ TYPE users:all      # check key type (string, list, hash, set)
 RENAME old new      # rename a key
 DEL users:all       # delete one key
 DEL key1 key2 key3  # delete multiple keys
-
 ///////////////////////////////////////////////////////////////////
-
 SET name "john"              # set a value
 GET name                     # get a value
 MSET k1 "v1" k2 "v2"       # set multiple at once
 MGET k1 k2                  # get multiple at once
 APPEND name "doe"           # append to value
-
 /////////////////////////////////////////////////////
 docker exec -it redis_cache redis-cli -a redis_password  |=> go login
 ////////////////////////////////////////////////////
-
 STRLEN name                  # length of value
 INCR counter                 # increment by 1
 INCRBY counter 5             # increment by 5
 DECR counter                 # decrement by 1
-
 /////////////////////////////////////////////////////////////////////
-
 TTL users:all           # time left in seconds (-1=no expiry, -2=gone)
 PTTL users:all          # time left in milliseconds
 EXPIRE users:all 300    # set expiry 300 seconds
 PERSIST users:all       # remove expiry (keep forever)
 EXPIREAT key 1234567890 # expire at unix timestamp
-
 //////////////////////////////////////////////////////////////////
-
 LPUSH mylist "a"        # add to left
 RPUSH mylist "b"        # add to right
 LPOP mylist             # remove from left
@@ -160,6 +152,8 @@ Redis     → only has it for TTL seconds (300s)
 ✅ OTP codes        → temporary codes with TTL
 
 ////////////////////////////////////////////////
+
+
 ❌ Primary database     → no relationships
 ❌ Complex queries      → no SQL, no JOIN
 ❌ Permanent storage    → data can vanish

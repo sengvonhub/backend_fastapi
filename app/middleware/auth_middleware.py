@@ -82,7 +82,7 @@ PUBLIC_ROUTES = [
     "/api/v1/auth/refresh",
     "/api/v1/auth/logout",
     "/api/v1/auth/setup",
-    "/api/v1/auth/register",     # ✅ add register too
+    "/api/v1/auth/register",
     "/docs",
     "/redoc",
     "/openapi.json",
@@ -92,6 +92,11 @@ PUBLIC_ROUTES = [
 class AuthMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next):
+
+
+        # ── 0. Always pass through WebSocket connections ───
+        if request.scope["type"] == "websocket":    # ✅ add this
+            return await call_next(request)
 
         # ── 0. Always allow OPTIONS (CORS preflight) ───────
         if request.method == "OPTIONS":                # ✅ add this

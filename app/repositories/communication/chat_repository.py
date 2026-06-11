@@ -29,6 +29,10 @@ class ChatRepository:
         await self.db.flush()
         return obj
 
+
+
+
+
     async def get_group_by_id(self, group_id: int, company_id: int) -> ChatGroup | None:
         result = await self.db.execute(
             select(ChatGroup).where(
@@ -65,9 +69,15 @@ class ChatRepository:
             .order_by(ChatGroup.group_id.desc())
         )
         return result.scalars().all()
+    
+
+
 
     async def find_direct_chat(
-        self, staff_id_a: int, staff_id_b: int, company_id: int
+        self, 
+        staff_id_a: int, 
+        staff_id_b: int, 
+        company_id: int
     ) -> ChatGroup | None:
         """Find existing 1-to-1 DM group between two staff members."""
         subq_a = (
@@ -103,6 +113,10 @@ class ChatRepository:
         self.db.add(obj)
         await self.db.flush()
         return obj
+    
+
+
+    
 
     async def get_member(
         self, group_id: int, staff_id: int, company_id: int
@@ -115,11 +129,14 @@ class ChatRepository:
             )
         )
         return result.scalar_one_or_none()
+    
+
+
 
     async def get_members(self, group_id: int, company_id: int) -> list[ChatGroupMember]:
         result = await self.db.execute(
             select(ChatGroupMember)
-            .options(selectinload(ChatGroupMember.staff))
+            .options(selectinload(ChatGroupMember.user))
             .where(
                 ChatGroupMember.group_id   == group_id,
                 ChatGroupMember.company_id == company_id,
@@ -129,6 +146,9 @@ class ChatRepository:
 
     async def remove_member(self, member: ChatGroupMember) -> None:
         await self.db.delete(member)
+
+
+
 
     # ==========================================================================
     # MESSAGES
@@ -140,6 +160,8 @@ class ChatRepository:
         await self.db.commit()
         await self.db.refresh(obj)
         return obj
+    
+
 
     async def get_message_by_id(
         self, message_id: int, company_id: int
@@ -154,28 +176,36 @@ class ChatRepository:
         )
         return result.scalar_one_or_none()
 
+
+
+
     async def get_messages(
         self,
         group_id:   int,
         company_id: int,
-        skip:       int = 0,
+        before_id:     int | None = None,
         limit:      int = 50,
     ) -> list[ChatMessage]:
         result = await self.db.execute(
             select(ChatMessage)
             .options(
                 selectinload(ChatMessage.sender),
-                selectinload(ChatMessage.reply_to),   # load replied message
+                selectinload(ChatMessage.reply_to),   
             )
             .where(
                 ChatMessage.group_id   == group_id,
                 ChatMessage.company_id == company_id,
+                ChatMessage.is_deleted == False,
             )
-            .order_by(ChatMessage.timestamp.desc())
-            .offset(skip)
-            .limit(limit)
+        
         )
+        if before_id is not None:
+            query = query.where(ChatMessage.message_id < before_id)
+        query = query.order_by(ChatMessage.message_id.desc()).limit(limit)
+        result = await self.db.execute(query)
         return result.scalars().all()
+
+
 
     async def get_all_file_messages(
         self, group_id: int, company_id: int

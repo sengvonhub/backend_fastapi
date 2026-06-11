@@ -13,7 +13,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 from app.db.base import Base
 from app.models.users import User
 from app.models.roles import Role
-from app.models.staffs import LeaveRequest, Staff, StaffRole, leave_request, AttendanceRecord
+from app.models.staffs import LeaveRequest, Staff, StaffRole, leave_request, AttendanceRecord, AttendanceSettings
 from app.models.departments import Department
 from app.models.chat import ChatGroup, ChatMessage, ChatGroupMember
 from app.models.invoices import Invoice, InvoiceItem, InvoiceAttachment

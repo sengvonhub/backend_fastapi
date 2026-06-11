@@ -5,6 +5,8 @@ import time, uuid
 
 class LoggingMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
+        if request.scope["type"] == "websocket":   # ✅
+            return await call_next(request)
         request_id = str(uuid.uuid4())[:8]
         start = time.time()
         request.state.request_id = request_id

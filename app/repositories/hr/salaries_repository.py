@@ -5,6 +5,8 @@ from decimal import Decimal
 
 from app.models.Salary.salary import Salary
 from app.models.Salary import SalaryAdjustment
+from app.models.staffs.staff import Staff
+from app.models.users.user import User
 
 
 class SalaryRepository:
@@ -34,6 +36,55 @@ class SalaryRepository:
         result = await self.db.execute(query)
         return result.scalars().all()
 
+    # -----------------------------------------------------------------------
+    # GET salaries by staff id
+    # -----------------------------------------------------------------------
+    async def get_salaries_by_staff(
+        self, staff_id: int, company_id: int
+    ) -> list[Salary]:
+        result = await self.db.execute(
+            select(Salary)
+            .where(
+                Salary.staff_id   == staff_id,
+                Salary.company_id == company_id,
+            )
+            .order_by(Salary.pay_period_start.desc())
+        )
+        return result.scalars().all()
+
+
+
+
+    # -----------------------------------------------------------------------
+    # GROUP salaries by staff + user
+    # -----------------------------------------------------------------------
+    async def get_group_by_staff(self, company_id: int):
+        result = await self.db.execute(
+            select(Salary, Staff, User)
+            .join(Staff, Salary.staff_id == Staff.staff_id)
+            .join(User, Staff.user_id == User.user_id)
+            .where(Salary.company_id == company_id)
+            .order_by(Staff.staff_id, Salary.pay_period_start.desc())
+        )
+        rows = result.all()
+        grouped = {}
+        for salary, staff, user in rows:
+            sid = staff.staff_id
+
+            if sid not in grouped:
+                grouped[sid] = {
+                    "staff_id": staff.staff_id,
+                    "user_id": user.user_id,
+                    "username": user.username,
+                    "full_name": user.full_name,
+                    "salaries": [],
+                }
+
+            grouped[sid]["salaries"].append(salary)
+        return list(grouped.values())
+    
+
+
     async def get_by_id(
         self, salary_id: int, company_id: int
     ) -> Salary | None:
@@ -44,6 +95,8 @@ class SalaryRepository:
             )
         )
         return result.scalar_one_or_none()
+    
+
 
     async def get_my_salaries(
         self, staff_id: int, company_id: int
@@ -58,12 +111,18 @@ class SalaryRepository:
         )
         return result.scalars().all()
 
+
+
+
     async def create(self, data: dict) -> Salary:
         salary = Salary(**data)
         self.db.add(salary)
         await self.db.commit()
         await self.db.refresh(salary)
         return salary
+    
+
+
 
     async def update(self, salary: Salary, data: dict) -> Salary:
         for key, value in data.items():

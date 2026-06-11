@@ -23,7 +23,7 @@ class SalaryAdjustment(Base):
 
     adjustment_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     company_id: Mapped[int] = mapped_column(Integer, ForeignKey("companies.company_id"), nullable=False, index=True)
-    salary_id: Mapped[int] = mapped_column(Integer, ForeignKey("salaries.salary_id"), nullable=False)
+    salary_id: Mapped[int] = mapped_column(Integer, ForeignKey("salaries.salary_id", ondelete="CASCADE"), nullable=False)
     
     adjusted_by: Mapped[int] = mapped_column(Integer, ForeignKey("users.user_id"), nullable=False)
 

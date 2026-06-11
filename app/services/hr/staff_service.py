@@ -10,25 +10,16 @@ from app.repositories.auth.user_respo import UserRepository
 from app.services.communication.notifications_service import NotificationService
 from app.dependencies import get_db, get_redis_client
 from typing import Optional
-
-
 # //////////////////////////////////////////////////////////
-
 from app.services.storage import CloudinaryStorage
 storage = CloudinaryStorage()
-
 # ===========================================================================
 # STAFF ROLE SERVICE — no notifications needed
 # ===========================================================================
 
 class StaffRoleService:
-
     def __init__(self, repo: StaffRolesRepository):
         self.repo = repo
-
-
-
-
     async def create(self, data: StaffRoleCreate, company_id: int) -> StaffRole:
         existing = await self.repo.get_by_name(data.role_name, company_id)
         if existing:
@@ -37,10 +28,6 @@ class StaffRoleService:
                 detail=f"Staff role '{data.role_name}' already exists.",
             )
         return await self.repo.create(data, company_id)
-
-
-
-
 
     async def get_by_id(self, staff_role_id: int, company_id: int) -> StaffRole:
         staff_role = await self.repo.get_by_id(staff_role_id, company_id)
@@ -51,7 +38,6 @@ class StaffRoleService:
             )
         return staff_role
     
-
 
 
     async def get_all(self, company_id: int) -> list[StaffRole]:
@@ -98,14 +84,14 @@ class StaffService:
 
     def __init__(
         self,
-        db:           AsyncSession,        # ✅ needed for NotificationService
+        db:           AsyncSession,        
         repo:         StaffRepository,
         user_repo:    UserRepository,
-        redis_client: redis.Redis,         # ✅ for real-time push
+        redis_client: redis.Redis,      
     ):
         self.repo      = repo
         self.user_repo = user_repo
-        self.notif     = NotificationService(  # ✅
+        self.notif     = NotificationService( 
             db           = db,
             redis_client = redis_client,
         )
@@ -116,6 +102,11 @@ class StaffService:
 
     async def get_all(self, company_id: int) -> list[Staff]:
         return await self.repo.get_all(company_id)
+    
+
+    async def get_by_user_id_list(self, user_id: int, company_id: int):
+        return await self.repo.get_by_user_id_list(user_id, company_id)
+
 
     # -----------------------------------------------------------------------
     # GET by id
@@ -158,13 +149,14 @@ class StaffService:
     # GET managers
     # -----------------------------------------------------------------------
 
+
     async def get_managers(self, company_id: int) -> list[Staff]:
         return await self.repo.get_managers(company_id)
+
 
     # -----------------------------------------------------------------------
     # GET by department
     # -----------------------------------------------------------------------
-
     async def get_by_department(
         self, department_id: int, company_id: int
     ) -> list[Staff]:
@@ -180,7 +172,6 @@ class StaffService:
         company_id:  int,
         avatar_file: Optional[UploadFile] = None,
     ) -> Staff:
- 
         # 1. Verify linked user exists in same company
         if data.user_id:
             user = await self.user_repo.get_by_id(data.user_id, company_id)
@@ -189,7 +180,6 @@ class StaffService:
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=f"User id={data.user_id} not found.",
                 )
- 
             # 2. Check no duplicate staff for this user
             already_exists = await self.repo.exists_by_user_id(data.user_id, company_id)
             if already_exists:
@@ -347,7 +337,7 @@ class StaffService:
 
 async def get_staff_service(
     db:           AsyncSession = Depends(get_db),
-    redis_client: redis.Redis  = Depends(get_redis_client),  # ✅ inject redis
+    redis_client: redis.Redis  = Depends(get_redis_client),  
 ) -> StaffService:
     return StaffService(
         db           = db,

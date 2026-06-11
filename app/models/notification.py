@@ -17,6 +17,7 @@ class NotificationType(str, enum.Enum):
     warning = "warning"
     error = "error"
     success = "success"
+    chat    = "chat"
 
 class Notification(Base):
     __tablename__ = "notifications"

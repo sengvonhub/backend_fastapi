@@ -14,8 +14,8 @@ def get_user_or_ip(request: Request):
 
 ip_limiter = Limiter(
     key_func=get_remote_address,
-    storage_uri=settings.REDIS_URL,    # ← Redis
-    default_limits=["5/minute"],  # only 5 login attempts per minute per IP
+    storage_uri=settings.REDIS_URL,    
+    default_limits=["1000/minute"],
 )
 
 

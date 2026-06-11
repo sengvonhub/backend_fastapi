@@ -1,16 +1,25 @@
 docker-compose up --build -d |=>  
 docker compose up -d --build |=>
 
+
 */ker compose build --no-cache |=>
 
-docker compose down -v |=>
 
+docker compose down -v |=>
 docker compose up |=>
 
 
 docker-compose exec app alembic revision --autogenerate -m "create roles and users" |=> add table with docker Then create new migration
 
 docker-compose exec app alembic upgrade head  |=>  set to db i docker Then apply new migration
+ 
+docker-compose exec app alembic downgrade -1  |=> rollback
+
+docker-compose exec app alembic history    |=> check history
+
+docker-compose exec app alembic downgrade <revision_id> |=> 
+
+docker-compose exec app alembic upgrade head |=> after
 
 
 alembic downgrade -1                          |=> Go back (undo) ONE migration step
@@ -43,7 +52,13 @@ ALTER TABLE users ALTER COLUMN updated_at SET DEFAULT now();
 DROP TABLE staff_roles CASCADE; |=>
 
 
-============================
+============================for add new enum column=================
+docker-compose exec app alembic revision --autogenerate -m |=>
+SELECT unnest(enum_range(NULL::notificationtype)); |=> check unset
+docker-compose exec app alembic downgrade 047132d5a528  |=> down grade
+docker-compose exec app alembic upgrade head  |=>
+
+====================================================================
 
 
 INSERT INTO staff_roles (role_name, description, base_salary, is_manager, created_at)

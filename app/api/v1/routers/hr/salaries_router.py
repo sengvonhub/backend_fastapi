@@ -3,18 +3,17 @@ from typing import Optional
 
 from app.schemas.schema import (
     SalaryCreate,
+    SalaryStaffGroupResponse,
     SalaryUpdate,
     SalaryResponse,
     SalaryAdjustmentCreate,
     SalaryAdjustmentResponse,
-
     SalarySummaryResponse,
     MarkPaidRequest,
 )
 from app.services.hr.salaries_service import get_salary_service, SalaryService
 from app.dependencies import get_db
 from app.utils.auth import  require_staff, require_manager
-
 salary_router = APIRouter(prefix="/salaries",tags=["Salaries"],)
 
 # ===========================================================================
@@ -34,6 +33,42 @@ async def get_my_salaries(
         staff_id   = current_user["staff_id"],
         company_id = current_user["company_id"],
     )
+# =================================================
+# by staff
+# =================================================
+
+@salary_router.get(
+    "/staff/{staff_id}",
+    response_model=list[SalaryResponse],
+    summary="[Manager] Get all salaries of a staff",
+)
+async def get_salaries_by_staff(
+    staff_id:     int,
+    current_user: dict = Depends(require_manager),
+    service:      SalaryService = Depends(get_salary_service),
+):
+    return await service.get_salaries_by_staff(
+        staff_id   = staff_id,
+        company_id = current_user["company_id"],
+    )
+
+# ===========================================================================
+# MANAGER — Group salaries by staff + user
+# ===========================================================================
+
+@salary_router.get(
+    "/group/staff",
+    response_model=list[SalaryStaffGroupResponse],
+    summary="[Manager] Group salaries by staff",
+    )
+async def group_salaries_by_staff(
+        current_user: dict = Depends(require_manager),
+        service: SalaryService = Depends(get_salary_service),
+    ):
+        return await service.get_group_by_staff(
+            company_id=current_user["company_id"]
+)
+
 
 
 # ===========================================================================
@@ -57,6 +92,9 @@ async def get_all_salaries(
         status     = pay_status,
     )
 
+# ==============================================================================
+# 
+# ==============================================================================
 
 @salary_router.get(
     "/summary",
@@ -70,6 +108,10 @@ async def get_summary(
     return await service.get_summary(
         company_id=current_user["company_id"]
     )
+
+# ======================================================================
+# 
+# ======================================================================
 
 
 @salary_router.get(
@@ -86,6 +128,12 @@ async def get_salary(
         salary_id  = salary_id,
         company_id = current_user["company_id"],
     )
+
+
+
+# ======================================================================
+# 
+# ======================================================================
 
 
 @salary_router.post(
@@ -105,6 +153,11 @@ async def create_salary(
     )
 
 
+# ======================================================================
+# 
+# ======================================================================
+
+
 @salary_router.patch(
     "/{salary_id}",
     response_model=SalaryResponse,
@@ -122,6 +175,9 @@ async def update_salary(
         company_id = current_user["company_id"],
     )
 
+# ======================================================================
+# 
+# ======================================================================
 
 @salary_router.patch(
     "/{salary_id}/mark-paid",
@@ -139,6 +195,10 @@ async def mark_paid(
         data       = data,
         company_id = current_user["company_id"],
     )
+
+# ======================================================================
+# 
+# ======================================================================
 
 
 @salary_router.delete(
@@ -175,7 +235,9 @@ async def get_adjustments(
         company_id = current_user["company_id"],
     )
 
-
+# ======================================================================
+# 
+# ======================================================================
 
 
 @salary_router.post(
@@ -199,12 +261,13 @@ async def create_adjustment(
     )
 
 
-
+# ======================================================================
+# 
+# ======================================================================
 
 @salary_router.delete(
     "/adjustments/{adjustment_id}",
-    summary="[Manager] Delete adjustment",
-)
+    summary="[Manager] Delete adjustment")
 async def delete_adjustment(
     adjustment_id: int,
     current_user:  dict = Depends(require_manager),

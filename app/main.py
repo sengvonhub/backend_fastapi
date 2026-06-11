@@ -20,16 +20,18 @@ from app.websockets import (
     start_chat_pubsub_listener,
     start_notification_pubsub_listener,
 )
-from slowapi.errors import RateLimitExceeded
-from slowapi.middleware import SlowAPIMiddleware
+# from slowapi.errors import RateLimitExceeded
+# from slowapi.middleware import SlowAPIMiddleware
+
+
+
 from app.middleware import (
     AuthMiddleware,
     LoggingMiddleware,
     ErrorMiddleware,
     setup_cors,
-    
 )
-from app.middleware.cors_middleware import CORSMiddleware
+from fastapi.middleware.cors import CORSMiddleware
 
 # =============================================================================
 # LIFESPAN
@@ -99,14 +101,18 @@ app.openapi = custom_openapi
 # =============================================================================
 # EXCEPTION HANDLERS
 # =============================================================================
-@app.exception_handler(RateLimitExceeded)
-async def rate_limit_handler(request, exc):
-    logger.warning(f"SECURITY | Rate limit hit | ip:{request.client.host} | path:{request.url.path}")
-    return JSONResponse(
-        status_code=429,
-        content={"code": "RATE_LIMIT_EXCEEDED", "message": "Too many requests.", "action": "WAIT_AND_RETRY"},
-        headers={"Retry-After": "60"},
-    )
+# @app.exception_handler(RateLimitExceeded)
+# async def rate_limit_handler(request, exc):
+#     logger.warning(f"SECURITY | Rate limit hit | ip:{request.client.host} | path:{request.url.path}")
+#     return JSONResponse(
+#         status_code=429,
+#         content={"code": "RATE_LIMIT_EXCEEDED", "message": "Too many requests.", "action": "WAIT_AND_RETRY"},
+#         headers={"Retry-After": "60"},
+#     )
+
+
+
+
 
 @app.exception_handler(AppException)
 async def app_exception_handler(request, exc: AppException):
@@ -125,7 +131,7 @@ async def app_exception_handler(request, exc: AppException):
 app.add_middleware(ErrorMiddleware)
 app.add_middleware(LoggingMiddleware)
 app.add_middleware(AuthMiddleware)
-app.add_middleware(SlowAPIMiddleware)
+# app.add_middleware(SlowAPIMiddleware)
 # setup_cors(app)
 app.add_middleware(
     CORSMiddleware,

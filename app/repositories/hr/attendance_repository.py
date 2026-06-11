@@ -4,6 +4,7 @@ from sqlalchemy.orm import selectinload
 from datetime import date, datetime
 from typing import Optional
 
+from app.core.timezone import cambodia_now
 from app.models.staffs.AttendanceRecord import AttendanceRecord
 from app.models.staffs.staff import Staff
 
@@ -18,16 +19,19 @@ class AttendanceRepository:
     # -----------------------------------------------------------------------
 
     async def get_today_record(
-        self, staff_id: int, company_id: int, today: date
+        self, staff_id: int, 
+        company_id: int, 
+        today: date
     ) -> AttendanceRecord | None:
         result = await self.db.execute(
             select(AttendanceRecord).where(
                 AttendanceRecord.staff_id   == staff_id,
-                AttendanceRecord.company_id == company_id,  # ✅ scope to company
+                AttendanceRecord.company_id == company_id,  
                 AttendanceRecord.date       == today,
             )
         )
-        return result.scalar_one_or_none()
+        # return result.scalars().first()      #|=  multiple
+        return result.scalar_one_or_none() 
 
     # -----------------------------------------------------------------------
     # CREATE check-in record
@@ -35,46 +39,59 @@ class AttendanceRepository:
 
     async def create_check_in(
         self,
-        staff_id:   int,
-        company_id: int,   # ✅ required
-        today:      date,
-        latitude:   str,
-        longitude:  str,
+        staff_id: int,
+        company_id: int,
+        today: date,
+        latitude: str,
+        longitude: str,
     ) -> AttendanceRecord:
-        now = datetime.now().time()   # ✅ time object not string
-
+        now = cambodia_now().time()
         record = AttendanceRecord(
-            company_id     = company_id,   # ✅ required
-            staff_id       = staff_id,
-            date           = today,
-            check_in_time  = now,
-            latitude       = latitude,
-            longitude      = longitude,
+            company_id=company_id,
+            staff_id=staff_id,
+            date=today,
+            check_in_time=now,
+            latitude=latitude,
+            longitude=longitude,
         )
         self.db.add(record)
         await self.db.commit()
-        await self.db.refresh(record)
-        return record
+        stmt = (
+            select(AttendanceRecord)
+            .options(selectinload(AttendanceRecord.staff))
+            .where(
+                AttendanceRecord.attendance_id == record.attendance_id
+            )
+        )
+        result = await self.db.execute(stmt)
+        return result.scalar_one()
 
     # -----------------------------------------------------------------------
     # UPDATE check-out on existing record
     # -----------------------------------------------------------------------
 
     async def update_check_out(
-        self,
-        record:    AttendanceRecord,
-        latitude:  str,
-        longitude: str,
+    self,
+    record: AttendanceRecord,
+    latitude: str,
+    longitude: str,
+    company_id: int,
     ) -> AttendanceRecord:
-        now = datetime.now().time()   # ✅ time object not string — removed debug print
-
+        now = cambodia_now().time()
         record.check_out_time = now
-        record.latitude       = latitude
-        record.longitude      = longitude
-
+        record.latitude = latitude
+        record.longitude = longitude
+        record.company_id = company_id
         await self.db.commit()
-        await self.db.refresh(record)
-        return record
+        stmt = (
+            select(AttendanceRecord)
+            .options(selectinload(AttendanceRecord.staff))
+            .where(
+                AttendanceRecord.attendance_id == record.attendance_id
+            )
+        )
+        result = await self.db.execute(stmt)
+        return result.scalar_one()
 
     # -----------------------------------------------------------------------
     # GET one by id
@@ -88,7 +105,7 @@ class AttendanceRepository:
             .options(selectinload(AttendanceRecord.staff))
             .where(
                 AttendanceRecord.attendance_id == attendance_id,
-                AttendanceRecord.company_id    == company_id,  # ✅ scope to company
+                AttendanceRecord.company_id    == company_id,  
             )
         )
         return result.scalar_one_or_none()
@@ -97,15 +114,21 @@ class AttendanceRepository:
     # GET all — manager views all staff attendance
     # -----------------------------------------------------------------------
 
+
+
     async def get_all(
         self,
         company_id:  int,
         filter_date: Optional[date] = None,
+        year:        Optional[int]  = None,  
+        staff_id:    Optional[int]  = None,  
+        month:       Optional[int]  = None, 
     ) -> list[AttendanceRecord]:
         query = (
             select(AttendanceRecord)
+            .join(Staff, AttendanceRecord.staff_id == Staff.staff_id)
             .options(selectinload(AttendanceRecord.staff))
-            .where(AttendanceRecord.company_id == company_id)  # ✅ scope to company
+            .where(AttendanceRecord.company_id == company_id)
             .order_by(
                 AttendanceRecord.date.desc(),
                 AttendanceRecord.check_in_time,
@@ -113,9 +136,23 @@ class AttendanceRepository:
         )
         if filter_date:
             query = query.where(AttendanceRecord.date == filter_date)
-
+        if month and year:                         
+            start = date(year, month, 1)
+            end = (
+                date(year + 1, 1, 1)
+                if month == 12
+                else date(year, month + 1, 1)
+            )
+            query = query.where(
+                AttendanceRecord.date >= start,
+                AttendanceRecord.date <  end,
+            )
+        if staff_id:                               
+            query = query.where(AttendanceRecord.staff_id == staff_id)
         result = await self.db.execute(query)
         return result.scalars().all()
+    
+
 
     # -----------------------------------------------------------------------
     # GET by staff_id — staff views own attendance history
@@ -128,12 +165,12 @@ class AttendanceRepository:
         month:      Optional[int] = None,
         year:       Optional[int] = None,
     ) -> list[AttendanceRecord]:
-        # ✅ removed wrong Staff join — just query AttendanceRecord directly
         query = (
             select(AttendanceRecord)
+            .options(selectinload(AttendanceRecord.staff))
             .where(
                 AttendanceRecord.staff_id   == staff_id,
-                AttendanceRecord.company_id == company_id,  # ✅ scope to company
+                AttendanceRecord.company_id == company_id,  
             )
             .order_by(AttendanceRecord.date.desc())
         )
@@ -232,3 +269,4 @@ class AttendanceRepository:
             "full_days":       len(full_days),
             "incomplete_days": len(incomplete),
         }
+    

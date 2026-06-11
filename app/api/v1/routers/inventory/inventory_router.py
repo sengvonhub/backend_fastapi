@@ -92,13 +92,6 @@ async def update_supplier(
     company_id = int(current_user["company_id"])
     return await  service.update(supplier_id, data, company_id, avatar)
 
-
-
-
-
-
-
-
 @supplier_router.delete(
     "/{supplier_id}/avatar", 
     summary="Remove supplier avatar"
@@ -134,9 +127,6 @@ async def list_customers(
 ):
     company_id = int(current_user["company_id"])
     return await service.get_all(company_id)
-
-
-
 
 @customer_router.get(
     "/{customer_id}",

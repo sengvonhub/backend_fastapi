@@ -9,12 +9,17 @@ from app.repositories.communication.notifications_repository import Notification
 ws_router = APIRouter(tags=["WebSocket"])
 
 # ws://localhost:8000/ws/notifications?token=<access_token>
+
 @ws_router.websocket("/ws/notifications")
 async def notification_websocket(
     websocket: WebSocket,
     token:     str          = Query(..., description="JWT access token"),
     db:        AsyncSession = Depends(get_db),
 ):
+    
+    print("WS ROUTE HIT")
+
+
     """
     Real-time notification WebSocket.
     Connect with:
@@ -48,6 +53,7 @@ async def notification_websocket(
     except Exception:
         await websocket.close(code=4001, reason="Invalid or expired token.")
         return
+    
     # 2. Register connection
     await ws_manager.connect(websocket, user_id)
     # 3. Send unread count on connect
@@ -62,7 +68,6 @@ async def notification_websocket(
         }))
     except Exception:
         pass
-
     # 4. Listen for client messages (ping/pong)
     try:
         while True:

@@ -115,10 +115,6 @@ async def update_plan(
 
 
 
-
-
-
-
 @company_router.patch(
     "/{company_id}/status",
     response_model=CompanyStatusHistoryResponse,
@@ -176,6 +172,10 @@ async def update_company(
 
 
 # Endpoint 2 — upload logo/banner only (FormData)
+
+
+
+
 @company_router.patch(
     "/{company_id}/media",
     response_model=CompanyResponse,

@@ -35,8 +35,6 @@ async def create_group(
     )
 
 
-
-
 @chat_router.post(
     "/direct",
     status_code=status.HTTP_201_CREATED,
@@ -56,6 +54,8 @@ async def create_direct_chat(
         staff_id   = staff_id,
         company_id = current_user["company_id"],
     )
+
+
 
 
 
@@ -107,7 +107,6 @@ async def get_group(
 
 
 
-
 @chat_router.delete(
     "/groups/{group_id}",
     summary="[Manager] Delete group + all Cloudinary assets",
@@ -122,6 +121,7 @@ async def delete_group(
         group_id   = group_id,
         company_id = current_user["company_id"],
     )
+
 
 
 # ==============================================================================
@@ -143,6 +143,9 @@ async def get_members(
     )
 
 
+
+
+
 @chat_router.post(
     "/groups/{group_id}/members",
     summary="[Manager] Add members to group",
@@ -161,6 +164,9 @@ async def add_members(
     )
 
 
+    
+
+
 @chat_router.delete(
     "/groups/{group_id}/members/{staff_id}",
     summary="[Manager] Remove member from group",
@@ -177,6 +183,9 @@ async def remove_member(
         company_id  = current_user["company_id"],
         by_staff_id = current_user.get("staff_id", 0),
     )
+
+
+
 
 
 @chat_router.get(
@@ -200,6 +209,8 @@ async def get_online_members(
 # MESSAGES — TEXT
 # ==============================================================================
 
+
+
 @chat_router.post(
     "/groups/{group_id}/messages",
     status_code=status.HTTP_201_CREATED,
@@ -215,7 +226,7 @@ async def send_message(
     Send a text message to the group.
     Include `reply_to_id` in the body to reply to a specific message.
     """
-    staff_id = current_user.get("staff_id")
+    staff_id = int(current_user.get("staff_id"))
     if not staff_id:
         raise HTTPException(403, "Only staff can send messages.")
     return await service.send_message(
@@ -224,6 +235,10 @@ async def send_message(
         staff_id   = staff_id,
         company_id = current_user["company_id"],
     )
+
+
+
+
 
 
 # ==============================================================================
@@ -290,6 +305,8 @@ async def send_video(
         company_id  = current_user["company_id"],
         reply_to_id = reply_to_id,
     )
+
+
 
 
 # ==============================================================================
@@ -393,14 +410,16 @@ async def send_file(
 # GET MESSAGES
 # ==============================================================================
 
+
+
 @chat_router.get(
     "/groups/{group_id}/messages",
     summary="Get group messages — paginated, newest first",
 )
 async def get_messages(
     group_id:     int,
-    skip:         int          = Query(0,  ge=0),
-    limit:        int          = Query(50, ge=1, le=100),
+    before_id: int | None = Query(None),
+    limit:        int          = Query(50),
     current_user: dict         = Depends(require_login),
     service:      ChatService  = Depends(get_chat_service),
 ):
@@ -415,7 +434,7 @@ async def get_messages(
         group_id   = group_id,
         staff_id   = staff_id,
         company_id = current_user["company_id"],
-        skip       = skip,
+        before_id  = before_id,
         limit      = limit,
     )
 
@@ -465,6 +484,11 @@ async def mark_all_read(
     )
 
 
+
+
+
+
+
 @chat_router.get(
     "/groups/{group_id}/messages/unread-count",
     summary="Get unread message count in group",
@@ -472,6 +496,8 @@ async def mark_all_read(
 async def get_unread_count(
     group_id:     int,
     current_user: dict        = Depends(require_login),
+
+    
     service:      ChatService = Depends(get_chat_service),
 ):
     staff_id = current_user.get("staff_id")

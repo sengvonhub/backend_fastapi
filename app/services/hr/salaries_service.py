@@ -57,6 +57,31 @@ class SalaryService:
             staff_id   = staff_id,
             status     = status,
         )
+    
+    async def get_group_by_staff(self, company_id: int):
+        return await self.repo.get_group_by_staff(company_id)
+    
+    # -----------------------------------------------------------------------
+    # GET salaries by staff (manager)
+    # -----------------------------------------------------------------------
+    async def get_salaries_by_staff(self, staff_id: int, company_id: int) -> list:
+        salaries = await self.repo.get_salaries_by_staff(staff_id, company_id)
+
+        if not salaries:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No salaries found for staff id={staff_id}",
+            )
+
+        return salaries
+
+        # -----------------------------------------------------------------------
+    # GET my salaries (staff views own)
+    # -----------------------------------------------------------------------
+
+    async def get_my_salaries(self, staff_id: int, company_id: int) -> list:
+        return await self.repo.get_my_salaries(staff_id, company_id)
+
 
     # -----------------------------------------------------------------------
     # GET one salary
@@ -71,12 +96,6 @@ class SalaryService:
             )
         return salary
 
-    # -----------------------------------------------------------------------
-    # GET my salaries (staff views own)
-    # -----------------------------------------------------------------------
-
-    async def get_my_salaries(self, staff_id: int, company_id: int) -> list:
-        return await self.repo.get_my_salaries(staff_id, company_id)
 
     # -----------------------------------------------------------------------
     # CREATE salary — notify staff
@@ -187,6 +206,9 @@ class SalaryService:
         await self.repo.delete(salary)
         return {"message": f"Salary id={salary_id} deleted."}
 
+
+
+
     # -----------------------------------------------------------------------
     # GET summary
     # -----------------------------------------------------------------------
@@ -197,6 +219,8 @@ class SalaryService:
     # -----------------------------------------------------------------------
     # GET adjustments
     # -----------------------------------------------------------------------
+
+
 
     async def get_adjustments(
         self, salary_id: int, company_id: int
@@ -215,7 +239,6 @@ class SalaryService:
         manager_staff_id: int,
     ):
         salary = await self.get_by_id(data.salary_id, company_id)
-
         adjustment = await self.repo.create_adjustment({
             "company_id":      company_id,
             "salary_id":       data.salary_id,

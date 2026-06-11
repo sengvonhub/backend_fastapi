@@ -13,57 +13,60 @@ from app.core.config import settings
 # -------------------------------------------
 
 def calculate_distance_metters(
-        late1: float, lon1: float,
-        late2: float, lon2: float,
+    lat1: float, lon1: float,
+    lat2: float, lon2: float,
 ) -> float:
-    R        = 6_371_000
-    phi1     = math.radians(late1)
-    phi2     = math.radians(late2)
-
-    dphi     = math.radians(late2 - late1)
-
+    R = 6_371_000
+    phi1 = math.radians(lat1)
+    phi2 = math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
     dlambda = math.radians(lon2 - lon1)
-    
-    a        = (
-        math.sin(dphi / 2 ) ** 2
-        + math.cos(phi1) * math.cos(phi2)
-        * math.sin(dlambda / 2) ** 2
+    a = (
+        math.sin(dphi / 2) ** 2 +
+        math.cos(phi1) * math.cos(phi2) *
+        math.sin(dlambda / 2) ** 2
     )
     return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
 
-def validate_gps_at_office(latitude: str, longitude: str) -> float:
-    """"""
+
+
+
+def validate_gps_at_office(
+    staff_lat: float,
+    staff_lon: float,
+    office_lat: float,
+    office_lon: float,
+    allowed_radius: int,
+) -> float:
     try:
-        staff_lat = float(latitude)
-        staff_lon = float(longitude)
+        staff_lat = float(staff_lat)
+        staff_lon = float(staff_lon)
+
     except (ValueError, TypeError):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid GPS coordinates. Enable location on your phone.",
         )
+
     distance = calculate_distance_metters(
-        late1=staff_lat,
+        lat1=staff_lat,
         lon1=staff_lon,
-        late2=settings.OFFICE_LATITUDE,
-        lon2=settings.OFFICE_LONGITUDE, 
+        lat2=office_lat,
+        lon2=office_lon,
     )
-    
-    if distance > settings.OFFICE_RADIUS_METERS:
+    if distance > allowed_radius:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={
-                "message":         "You are not at the office.",
+                "message": "You are not at the office.",
                 "distance_meters": round(distance, 1),
-                "allowed_radius":  settings.OFFICE_RADIUS_METERS,
-                "hint": (
-                    f"You are {distance:.0f}m away. "
-                    f"Must be within {settings.OFFICE_RADIUS_METERS}m."
-                ),
+                "allowed_radius": allowed_radius,
+                "hint": f"You are {distance:.0f}m away. Must be within {allowed_radius}m.",
             }
         )
-    return distance
 
+    return distance
 
 
 # ---------------------------------------------------------------------------

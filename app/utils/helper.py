@@ -32,7 +32,6 @@ def _serialize(log) -> AuditLogResponse:
 # =========================================================================
 
 async def _to_response(
-        self,
         leave_request: LeaveRequest,
     ) -> LeaveRequestResponse:
         """Convert LeaveRequest model to response DTO."""
@@ -56,7 +55,7 @@ async def _to_response(
 # ===============================================================
 # OPEN & CLOSE TIME
 # ===============================================================
-def _get_office_open_time(self) -> time:
+def _get_office_open_time() -> time:
     try:
         # reads "09:00" from settings
         open_time = getattr(settings, "OFFICE_OPEN_TIME", "09:00")
@@ -64,6 +63,7 @@ def _get_office_open_time(self) -> time:
         return time(int(parts[0]), int(parts[1]))  # → time(9, 0)
     except Exception:
         return time(9, 0)
+    
     # -----------------------------------------------------------------------
     # HELPER — notify all managers
     # -----------------------------------------------------------------------

@@ -26,15 +26,16 @@ class ChatMessage(Base):
     message_id:   Mapped[int]           = mapped_column(Integer, primary_key=True, autoincrement=True)
     company_id:   Mapped[int]           = mapped_column(Integer, ForeignKey("companies.company_id"), nullable=False, index=True)
     group_id:     Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("chat_groups.group_id"), nullable=True)
+ 
     sender_id:    Mapped[int]           = mapped_column(Integer, ForeignKey("users.user_id"), nullable=False)
     receiver_id:  Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("users.user_id"), nullable=True)
+
 
     reply_to_id:  Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("chat_messages.message_id"), nullable=True)
 
     message_type: Mapped[MessageType] = mapped_column(Enum(MessageType), default=MessageType.text, nullable=False)
     content:      Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     timestamp:    Mapped[datetime]      = mapped_column(DateTime, default=func.now(), nullable=False)
-
 
     file_url:     Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
 

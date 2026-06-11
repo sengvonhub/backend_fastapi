@@ -1,9 +1,10 @@
 from fastapi import APIRouter
+
+from .company import company_router
 from .auth import router_auth
 from .hr import router_hr
 from .inventory import router_inventory
 from .communication import router_communication
-from .company import company_router
 
 api_router = APIRouter()
 api_router.include_router(router_auth)

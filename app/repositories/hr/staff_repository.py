@@ -68,6 +68,10 @@ class StaffRolesRepository:
             .order_by(StaffRole.role_name)
         )
         return result.scalars().all()
+    
+
+    
+
 
     async def update(
         self, staff_role_id: int, data: dict, company_id: int
@@ -116,6 +120,21 @@ class StaffRepository:
             .order_by(Staff.name)
         )
         return result.scalars().all()
+    
+
+    async def get_by_user_id_list(self, user_id: int, company_id: int):
+        result = await self.db.execute(
+            select(Staff)
+            .where(
+                Staff.user_id == user_id,
+                Staff.company_id == company_id,
+            )
+            .order_by(Staff.created_at.desc())
+        )
+        return result.scalars().all()
+    
+
+    
     # -----------------------------------------------------------------------
     # GET one staff by id (full detail)
     # -----------------------------------------------------------------------
@@ -144,14 +163,16 @@ class StaffRepository:
     # -----------------------------------------------------------------------
 
     async def get_by_user_id(
-        self, user_id: int, company_id: int
+        self, 
+        user_id: int, 
+        company_id: int
     ) -> Staff | None:
         result = await self.db.execute(
             select(Staff)
             .options(selectinload(Staff.staff_role))
             .where(
                 Staff.user_id    == user_id,
-                Staff.company_id == company_id,   # ✅ scope to company
+                Staff.company_id == company_id,   
             )
         )
         return result.scalar_one_or_none()
@@ -166,7 +187,7 @@ class StaffRepository:
         result = await self.db.execute(
             select(Staff).where(
                 Staff.email      == email,
-                Staff.company_id == company_id,   # ✅ scope to company
+                Staff.company_id == company_id,  
             )
         )
         return result.scalar_one_or_none()
@@ -297,7 +318,7 @@ class StaffRepository:
             delete(Staff)
             .where(
                 Staff.staff_id   == staff_id,
-                Staff.company_id == company_id,   # ✅ scope to company
+                Staff.company_id == company_id,
             )
         )
         await self.db.commit()

@@ -47,6 +47,8 @@ class Company(Base):
     staff              = relationship("Staff",            back_populates="company", cascade="all, delete-orphan")
     leave_requests     = relationship("LeaveRequest",     back_populates="company", cascade="all, delete-orphan")
     attendance_records = relationship("AttendanceRecord", back_populates="company", cascade="all, delete-orphan")
+    attendance_settings = relationship("AttendanceSettings", back_populates="company", cascade="all, delete-orphan")
+
     audit_logs         = relationship("AuditLog",         back_populates="company", cascade="all, delete-orphan")
     
     refreshtokens      = relationship("RefreshToken",     back_populates="company", cascade="all, delete-orphan")

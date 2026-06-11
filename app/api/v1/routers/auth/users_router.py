@@ -18,14 +18,12 @@ department_router = APIRouter(prefix="/departments", tags=["Departments"])
 #  ROLES
 # ===========================================================================
 
-
 @role_router.post(
     "/",
     response_model=RoleResponse,
     status_code=status.HTTP_201_CREATED,
     summary="[Admin] Create role",
 )
-
 async def create_role(
     data:         RoleCreate,
     current_user: dict        = Depends(require_admin),
@@ -38,12 +36,15 @@ async def create_role(
 
 
 
+
+
+
+
 @role_router.get(
     "/",
     response_model=list[RoleResponse],
     summary="[Admin] List all roles",
 )
-
 async def get_roles(
     current_user: dict        = Depends(require_admin),
     service:      UserService = Depends(get_user_service),
@@ -70,7 +71,7 @@ async def delete_role(
     role_id:      int,
     current_user: dict        = Depends(require_admin),
     service:      UserService = Depends(get_user_service),
-    cache:        CacheService = Depends(get_cache_service),  # ✅ fix: was UserService
+    cache:        CacheService = Depends(get_cache_service), 
 ):
     await service.delete_role(role_id, company_id=current_user["company_id"])
     await cache.delete(f"roles:{current_user['company_id']}")
@@ -97,6 +98,9 @@ async def create_department(
     await cache.delete(f"departments:{current_user['company_id']}")
     return dept
 
+
+
+
 @department_router.get(
     "/",
     response_model=list[DepartmentResponse],
@@ -115,6 +119,9 @@ async def get_departments(
     await cache.set(cache_key, depts_data, ttl=300)
     return depts_data
 
+
+
+
 @department_router.delete(
     "/{department_id}",
     status_code=status.HTTP_204_NO_CONTENT,
@@ -128,6 +135,9 @@ async def delete_department(
 ):
     await service.delete_department(department_id, company_id=current_user["company_id"])
     await cache.delete(f"departments:{current_user['company_id']}")
+
+
+
 
 
 # ===========================================================================
@@ -198,9 +208,14 @@ async def get_users(
 
 
 
+
+
 # ///////////////////////////////////////////////////////////////////////
 # //
 # //////////////////////////////////////////////////////////////////////
+
+
+
 
 
 @router.get(
@@ -219,14 +234,12 @@ async def get_user(
     cached = await cache.get(cache_key)
     if cached:
         return cached
+    
 
     user          = await service.get_user_by_id(user_id, company_id=current_user["company_id"])
     user_response = UserResponse.model_validate(user)
     await cache.set(cache_key, user_response.model_dump(mode="json"), ttl=300)  # ✅ fix: mode="json" for datetime
     return user_response
-
-
-
 
 
 @router.patch(
@@ -247,6 +260,9 @@ async def update_user(
     await cache.delete(f"user:{current_user['company_id']}:{user_id}")
     await cache.delete_pattern(f"users:{current_user['company_id']}:*") 
     return user 
+
+
+
 
 
 

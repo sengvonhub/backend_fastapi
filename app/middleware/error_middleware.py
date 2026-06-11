@@ -8,6 +8,8 @@ from app.exceptions.exceptions import AppException
 class ErrorMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next):
+        if request.scope["type"] == "websocket":   # ✅
+            return await call_next(request)
         try:
             response = await call_next(request)
             return response
