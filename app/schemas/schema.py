@@ -3,6 +3,7 @@ from typing import Optional, List, Dict, Any
 from datetime import datetime, date, time
 from decimal import Decimal
 from enum import Enum
+from typing import Optional
 
 
 
@@ -53,9 +54,14 @@ class NotificationTypeEnum(str, Enum):
 
 
 class MovementTypeEnum(str, Enum):
-    stock_in   = "stock_in"
-    stock_out  = "stock_out"
-    adjustment = "adjustment"
+    stock_in    = "stock_in"
+    stock_out   = "stock_out"
+    adjustment  = "adjustment"
+    purchase    = "purchase"
+    sale        = "sale"
+    return_     = "return"
+    transfer    = "transfer"
+    damage      = "damage"
 
 
 class UserStatus(str, Enum):
@@ -454,6 +460,7 @@ class StaffResponse(StaffBase):
     avatar_url: Optional[str] = None
     avatar_public_id: Optional[str] = None
     created_at: datetime
+    staff_role: Optional[StaffRoleResponse] = None
     
     model_config = ConfigDict(from_attributes=True)
 
@@ -689,24 +696,60 @@ class CategoryUpdate(BaseModel):
 
 class CategoryResponse(CategoryBase):
     category_id: int
+    company_id: int        
+    created_at: datetime   
+    updated_at: datetime
 
     class Config:
         from_attributes = True
+
+
+
+
+# ============================================================================
+# PRODUCT VARIANT
+# ============================================================================
+
+class ProductVariantBase(BaseModel):
+    sku:            Optional[str]     = Field(None, max_length=100)
+    specs:          dict              = Field(default_factory=dict)  
+    price:          Decimal           = Field(..., ge=0)
+    stock_quantity: int               = Field(default=0, ge=0)
+
+
+class ProductVariantCreate(ProductVariantBase):
+    pass
+
+
+class ProductVariantUpdate(BaseModel):
+    sku:            Optional[str]     = Field(None, max_length=100)
+    specs:          Optional[dict]    = None
+    price:          Optional[Decimal] = Field(None, ge=0)
+    stock_quantity: Optional[int]     = Field(None, ge=0)
+
+
+class ProductVariantResponse(ProductVariantBase):
+    variant_id:  int
+    product_id:  int
+    created_at:  datetime
+    updated_at:  Optional[datetime] = None
+    images:      list["ProductImageResponse"] = []  # variant-level images
+
+    model_config = ConfigDict(from_attributes=True)
+
 
 
 # ============================================================================
 # PRODUCT SCHEMAS
 # ============================================================================
 
+
+
+
 class ProductBase(BaseModel):
     category_id:    Optional[int]    = None
     name:           str              = Field(..., min_length=2, max_length=200)
-    unit:           Optional[str]    = Field(None, max_length=50)
-    length_width:   Optional[str]    = Field(None, max_length=100)
     descriptions:   Optional[str]    = Field(None, max_length=1000)
-    price:          Decimal          = Field(..., ge=0)
-    stock_quantity: int              = Field(default=0, ge=0)
-
 
 
 
@@ -717,29 +760,15 @@ class ProductCreate(ProductBase):
 class ProductUpdate(BaseModel):
     category_id:    Optional[int]     = None
     name:           Optional[str]     = Field(None, min_length=2, max_length=200)
-    unit:           Optional[str]     = Field(None, max_length=50)
-    price:          Optional[Decimal] = Field(None, ge=0)
-    stock_quantity: Optional[int]     = Field(None, ge=0)
     descriptions:   Optional[str]     = Field(None, max_length=1000)
 
 
-class ProductResponse(ProductBase):
-    product_id: int
-    created_at: datetime
-    updated_at: Optional[datetime] = None
-
-    class Config:
-        from_attributes = True
-
-
-# ============================================================================
-# STOCK MOVEMENT SCHEMAS
-# ============================================================================
 
 
 class ProductImageBase(BaseModel):
     product_id: int
     company_id: int
+    variant_id: Optional[int] = None  
     image_url: Optional[str] = None
     public_id: Optional[str] = None
     is_primary: Optional[bool] = False
@@ -755,11 +784,32 @@ class ProductImageUpdate(BaseModel):
     sort_order: Optional[int] = None
 
 class ProductImageResponse(ProductImageBase):
-    image_id: int
-    created_at: datetime
+    images_id:  int
+    product_id: int
+    company_id: int
+    image_url:  str  
+    public_id:  str = Field(validation_alias="image_public_id") 
+    is_primary: bool
+    sort_order: int
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)  
 
-    class Config:
-        from_attributes = True
+
+
+class ProductResponse(ProductBase):
+    product_id: int
+    company_id: int
+    variants:   list[ProductVariantResponse] = []
+    images: list[ProductImageResponse] = []
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+    model_config = ConfigDict(from_attributes=True)
+
+
+
+
+
+
+
 
 
 # ============================================================================
@@ -767,26 +817,36 @@ class ProductImageResponse(ProductImageBase):
 # ============================================================================
 
 class StockMovementBase(BaseModel):
-    product_id:       int
-    qty_in:           int              = Field(default=0, ge=0)
-    qty_out:          int              = Field(default=0, ge=0)
-    balance_quantity: Optional[int]    = None
+    variant_id:       int
+    qty_in:           int               = Field(default=0, ge=0)
+    qty_out:          int               = Field(default=0, ge=0)
+    balance_quantity: Optional[int]     = None
     movement_type:    MovementTypeEnum
     date:             date
-    reference_id:     Optional[int]    = None
-    opening_balance:  Optional[Decimal]= None
+    reference_id:     Optional[int]     = None
+    opening_balance:  Optional[float]   = None
 
 
 class StockMovementCreate(StockMovementBase):
-    pass
+    product_id: int
+
+
+class StockMovementUpdate(BaseModel):
+    qty_in:        Optional[int]              = Field(default=None, ge=0)
+    qty_out:       Optional[int]              = Field(default=None, ge=0)
+    movement_type: Optional[MovementTypeEnum] = None
+    date:          Optional[date]             = None
+    reference_id:  Optional[int]              = None
+    unit_price:    Optional[float]            = None
 
 
 class StockMovementResponse(StockMovementBase):
     movement_id: int
+    company_id:  int
 
     class Config:
         from_attributes = True
-
+        json_encoders = {Decimal: float}
 
 # ============================================================================
 # SUPPLIER SCHEMAS
@@ -794,9 +854,10 @@ class StockMovementResponse(StockMovementBase):
 
 class SupplierBase(BaseModel):
     name:           str              = Field(..., min_length=2, max_length=200)
-    company_id:     int                
+    # company_id:     int                
     contact_person: Optional[str]    = Field(None, max_length=150)
     phone:          Optional[str]    = Field(None, max_length=20)
+    phone2:         Optional[str]    = Field(None, max_length=20)
     email:          Optional[EmailStr] = None
     address:        Optional[str]    = Field(None, max_length=500)
     avatar_url: Optional[str] = None
@@ -811,17 +872,74 @@ class SupplierUpdate(BaseModel):
     name:           Optional[str]      = Field(None, min_length=2, max_length=200)
     contact_person: Optional[str]      = Field(None, max_length=150)
     phone:          Optional[str]      = Field(None, max_length=20)
+    phone2:           Optional[str]       = Field(None, max_length=20)
     email:          Optional[EmailStr] = None
     address:        Optional[str]      = Field(None, max_length=500)
+    avatar_url:       Optional[str]       = None                        
+    avatar_public_id: Optional[str]       = None
 
 
 class SupplierResponse(SupplierBase):
     supplier_id: int
+    company_id:  int
     created_at:  datetime
+    updated_at: datetime
+    model_config = ConfigDict(from_attributes=True)
 
 
-    class Config:
-        from_attributes = True
+
+# =============================================================================
+# 
+# =============================================================================       
+
+class CategoryBrief(BaseModel):
+    category_id:   int
+    category_name: str
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ProductBrief(BaseModel):
+    product_id: int
+    name:       str
+
+    model_config = ConfigDict(from_attributes=True)
+
+class SupplierBrief(BaseModel):
+    supplier_id: int
+    name:        str
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ProductVariantBrief(BaseModel):
+    variant_id: int
+    sku:        Optional[str] = None
+    product:    ProductBrief
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+
+
+class SupplierProductPriceBase(BaseModel):
+    supplier_id: int
+    variant_id:  int
+    unit_price:  Decimal = Field(..., ge=0)
+    note:        Optional[str] = Field(None, max_length=255)
+
+class SupplierProductPriceCreate(SupplierProductPriceBase):
+    pass
+
+class SupplierProductPriceUpdate(BaseModel):
+    unit_price: Optional[Decimal] = Field(None, ge=0)
+    note:       Optional[str]     = Field(None, max_length=255)
+
+class SupplierProductPriceResponse(SupplierProductPriceBase):
+    price_id:   int
+    created_at: datetime
+    updated_at: datetime
+    variant:    ProductVariantBrief
+    supplier: SupplierBrief
+    model_config = ConfigDict(from_attributes=True)
 
 
 
@@ -829,30 +947,32 @@ class SupplierResponse(SupplierBase):
 # CUSTOMER SCHEMAS
 # ============================================================================
 
-class CustomerBase(BaseModel):
-    name:           str              = Field(..., min_length=2, max_length=200)
-    email:          Optional[EmailStr] = None
-    phone:          Optional[str]    = Field(None, max_length=20)
-    avatar_url: Optional[str] = None
-    avatar_public_id: Optional[str] = None
-    total_purchase: Decimal          = Field(default=Decimal("0"), ge=0)
 
-
-class CustomerCreate(CustomerBase):
-    pass
+class CustomerCreate(BaseModel):
+    name:  str               = Field(..., min_length=2, max_length=200)
+    email: Optional[EmailStr] = None
+    phone: Optional[str]     = Field(None, max_length=20)
 
 
 class CustomerUpdate(BaseModel):
-    name:           Optional[str]      = Field(None, min_length=2, max_length=200)
-    email:          Optional[EmailStr] = None
-    phone:          Optional[str]      = Field(None, max_length=20)
-    avatar_url: Optional[str] = None
-    avatar_public_id: Optional[str] = None
-    total_purchase: Optional[Decimal]  = Field(None, ge=0)
+    name:  Optional[str]      = Field(None, min_length=2, max_length=200)
+    email: Optional[EmailStr] = None
+    phone: Optional[str]      = Field(None, max_length=20)
 
 
-class CustomerResponse(CustomerBase):
-    customer_id: int
+# ── API response ──────────────────────────────────────────────────────────────
+
+class CustomerResponse(BaseModel):
+    customer_id:      int
+    company_id:       int
+    name:             str
+    email:            Optional[str]     = None
+    phone:            Optional[str]     = None
+    avatar_url:       Optional[str]     = None
+    avatar_public_id: Optional[str]     = None
+    total_purchase:   Decimal           = Decimal("0")
+    created_at:       datetime
+    updated_at:       Optional[datetime] = None
 
     class Config:
         from_attributes = True
@@ -862,37 +982,10 @@ class CustomerResponse(CustomerBase):
 # INVOICE SCHEMAS
 # ============================================================================
 
-class InvoiceBase(BaseModel):
-    customer_id:  Optional[int]            = None
-    staff_id:     Optional[int]            = None
-    total_amount: Decimal                  = Field(..., ge=0)
-    discount:     Decimal                  = Field(default=Decimal("0"), ge=0)
-    tax:          Decimal                  = Field(default=Decimal("0"), ge=0)
-    payment_type: Optional[PaymentTypeEnum]= None
-
-
-class InvoiceCreate(InvoiceBase):
-    pass
-
-
-class InvoiceUpdate(BaseModel):
-    total_amount: Optional[Decimal]            = Field(None, ge=0)
-    discount:     Optional[Decimal]            = Field(None, ge=0)
-    tax:          Optional[Decimal]            = Field(None, ge=0)
-    payment_type: Optional[PaymentTypeEnum]    = None
-
-
-class InvoiceResponse(InvoiceBase):
-    invoice_id: int
-    created_at: datetime
-
-    class Config:
-        from_attributes = True
-
 
 class InvoiceItemBase(BaseModel):
-    invoice_id:  int
     product_id:  int
+    variant_id:  int
     quantity:    int     = Field(..., gt=0)
     unit_price:  Decimal = Field(..., ge=0)
     total_price: Optional[Decimal] = None
@@ -903,16 +996,33 @@ class InvoiceItemBase(BaseModel):
             self.total_price = Decimal(str(self.quantity)) * self.unit_price
         return self
 
-
 class InvoiceItemCreate(InvoiceItemBase):
     pass
 
-
 class InvoiceItemResponse(InvoiceItemBase):
-    item_id: int
+    item_id:    int
+    invoice_id: int
+    company_id: int
+    model_config = ConfigDict(from_attributes=True)
 
-    class Config:
-        from_attributes = True
+
+class InvoiceBase(BaseModel):
+    customer_id:  Optional[int]             = None
+    staff_id:     Optional[int]             = None
+    total_amount: Optional[Decimal]         = Field(None, ge=0)
+    discount:     Decimal                   = Field(default=Decimal("0"), ge=0)
+    tax:          Decimal                   = Field(default=Decimal("0"), ge=0)
+    payment_type: Optional[PaymentTypeEnum] = None
+
+class InvoiceCreate(InvoiceBase):
+    items: list[InvoiceItemCreate] = []  
+
+class InvoiceUpdate(BaseModel):
+    total_amount: Optional[Decimal]         = Field(None, ge=0)
+    discount:     Optional[Decimal]         = Field(None, ge=0)
+    tax:          Optional[Decimal]         = Field(None, ge=0)
+    payment_type: Optional[PaymentTypeEnum] = None
+
 
 
 class InvoiceAttachmentResponse(BaseModel):
@@ -920,12 +1030,21 @@ class InvoiceAttachmentResponse(BaseModel):
     company_id:    int
     invoice_id:    int
     file_url:      str
-    public_id:     str
+    public_id:     Optional[str] = None  
     file_name:     Optional[str] = None
     file_type:     Optional[str] = None
     created_at:    datetime
- 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True)
+    
+class InvoiceResponse(InvoiceBase):
+    invoice_id:  int
+    company_id:  int
+    items:       list[InvoiceItemResponse]       = []
+    attachments: list[InvoiceAttachmentResponse] = []
+    created_at:  datetime
+    updated_at:  Optional[datetime] = None
+    model_config = ConfigDict(from_attributes=True)
+
 
 
 # ============================================================================
@@ -1073,6 +1192,8 @@ class SystemSettingUpdate(BaseModel):
 
 class SystemSettingResponse(SystemSettingBase):
     setting_id: int
+    company_id: int         
+    created_at: datetime     
     updated_at: Optional[datetime] = None
 
     class Config:

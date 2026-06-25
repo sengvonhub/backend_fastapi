@@ -72,7 +72,7 @@ class CloudinaryStorage(BaseStorage):
         # 3. Push to Cloudinary (blocking SDK → thread pool) || asyncio.get_event_loop() => od basic (works only inside async def) || asyncio.run() => new modern
         # loop.run_in_executor() |=> Run this blocking code in a separate thread, so my async app doesn’t freeze | None = use default ThreadPoolExecutor
         try:
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             result: dict = await loop.run_in_executor(
                 None,
                 lambda: cloudinary.uploader.upload(
@@ -110,6 +110,10 @@ class CloudinaryStorage(BaseStorage):
                 "transformation": [{"quality": "auto", "fetch_format": "auto"}],
             },
         )
+    
+
+
+
 
     async def upload_video(self, file: UploadFile, folder: str = "videos") -> dict:
         """MP4 / MOV / AVI / WebM — 6 MB chunked upload. Max 200 MB."""
@@ -136,13 +140,12 @@ class CloudinaryStorage(BaseStorage):
 
 
 
+    
     async def delete_asset(self, public_id: str, resource_type: str = "image") -> dict:
-        """Soft-safe delete — returns status dict, never raises on 'not found'."""
         if not public_id or public_id == "string":
             return {"deleted": None, "message": "No valid public_id provided"}
-
         try:
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             result: dict = await loop.run_in_executor(
                 None,
                 lambda: cloudinary.uploader.destroy(
@@ -150,15 +153,16 @@ class CloudinaryStorage(BaseStorage):
                 ),
             )
         except cloudinary.exceptions.Error as exc:
-            raise HTTPException(status_code=500, detail=f"Cloudinary delete failed: {exc}")
+            print(f"Cloudinary delete failed: {exc}")
+            return {"deleted": public_id, "status": "error", "message": str(exc)}
 
         if result.get("result") == "ok":
             return {"deleted": public_id, "status": "deleted"}
-
         if result.get("result") == "not found":
-            return {"deleted": public_id, "status": "already_deleted", "message": "Asset not found (skipped)"}
-
-        raise HTTPException(status_code=500, detail=f"Unexpected Cloudinary response: {result}")
+            return {"deleted": public_id, "status": "already_deleted"}
+        # ✅ don't raise on unexpected response — log and continue
+        print(f"Unexpected Cloudinary response: {result}")
+        return {"deleted": public_id, "status": "unknown", "message": str(result)}
 
 
 

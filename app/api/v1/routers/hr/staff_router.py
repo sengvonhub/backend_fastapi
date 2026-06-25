@@ -295,14 +295,6 @@ async def update_staff(
         avatar_file=avatar_file,
     )
 
-
-
-
-
-
-
-
-
 @staff_router.patch("/{staff_id}/avatar", response_model=StaffResponse)
 async def update_avatar(
     staff_id:     int,

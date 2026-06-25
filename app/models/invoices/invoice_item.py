@@ -6,6 +6,7 @@ if TYPE_CHECKING:
     from .invoice import Invoice
     from ..products import Product
     from ..company import Company
+    from ..products.product_variant import ProductVariant
 
 class InvoiceItem(Base):
     __tablename__ = "invoice_items"
@@ -14,6 +15,7 @@ class InvoiceItem(Base):
     company_id: Mapped[int] = mapped_column(Integer, ForeignKey("companies.company_id"), nullable=False, index=True)
     invoice_id: Mapped[int] = mapped_column(Integer, ForeignKey("invoices.invoice_id"), nullable=False)
     product_id: Mapped[int] = mapped_column(Integer, ForeignKey("products.product_id"), nullable=False)
+    variant_id:  Mapped[int]   = mapped_column(Integer, ForeignKey("product_variants.variant_id"), nullable=False, index=True)
     quantity: Mapped[int] = mapped_column(Integer, nullable=False)
     unit_price: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
     total_price: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False)
@@ -22,3 +24,4 @@ class InvoiceItem(Base):
     company: Mapped["Company"] = relationship("Company", back_populates="invoice_items")
     invoice: Mapped["Invoice"] = relationship("Invoice", back_populates="items")
     product: Mapped["Product"] = relationship("Product", back_populates="invoice_items")
+    variant:  Mapped["ProductVariant"]  = relationship("ProductVariant", back_populates="invoice_items")

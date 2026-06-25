@@ -1,8 +1,9 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
 from app.exceptions.exceptions import NotFoundException
-
-from app.models.supplier import Supplier
+from sqlalchemy.orm import selectinload
+from app.models.products.product_variant import ProductVariant
+from app.models.supplier.supplier import Supplier
 from app.models.customer import Customer
 from app.models.category import Category
 from app.models.products.product import Product
@@ -21,7 +22,8 @@ class SupplierRepository:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-        
+
+
 
     async def get_all(self, company_id: int) -> list[Supplier]:
         r = await self.db.execute(
@@ -31,6 +33,8 @@ class SupplierRepository:
         )
         return r.scalars().all()
     
+
+
 
 
 
@@ -44,25 +48,6 @@ class SupplierRepository:
         return r.scalar_one_or_none()
     
 
-    
-    
-    async def get_by_id(self, supplier_id: int, company_id: int) -> Supplier:
-        r = await self.db.execute(
-            select(Supplier).where(
-                Supplier.supplier_id == supplier_id,
-                Supplier.company_id  == company_id,
-            )
-        )
-        obj = r.scalar_one_or_none()
-        if obj is None:
-            raise NotFoundException(f"Supplier {supplier_id} not found")
-        return obj
-    
-
-
-
-
-
 
     async def create(self, data: dict) -> Supplier:
         obj = Supplier(**data)
@@ -70,6 +55,8 @@ class SupplierRepository:
         await self.db.commit()
         await self.db.refresh(obj)
         return obj
+    
+
 
     async def update(self, obj: Supplier, data: dict) -> Supplier:
         for k, v in data.items():
@@ -111,6 +98,10 @@ class CustomerRepository:
         )
         return r.scalar_one_or_none()
 
+
+
+
+
     async def create(self, data: dict) -> Customer:
         obj = Customer(**data)
         self.db.add(obj)
@@ -118,12 +109,21 @@ class CustomerRepository:
         await self.db.refresh(obj)
         return obj
 
+
+
+
+
+
+
     async def update(self, obj: Customer, data: dict) -> Customer:
         for k, v in data.items():
             setattr(obj, k, v)
         await self.db.commit()
         await self.db.refresh(obj)
         return obj
+
+
+
 
     async def delete(self, obj: Customer) -> None:
         await self.db.delete(obj)
@@ -178,13 +178,27 @@ class CategoryRepository:
 # PRODUCT
 # ===========================================================================
 
+
+
+
+
 class ProductRepository:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def get_all(self, company_id: int, category_id: int | None = None) -> list[Product]:
+        
+    async def get_all(
+            self, 
+            company_id: int, 
+            category_id: int | None = None
+        ) -> list[Product]:
         query = (
             select(Product)
+            .options(
+                selectinload(Product.images),
+                selectinload(Product.variants)
+                  .selectinload(ProductVariant.images),
+                )  
             .where(Product.company_id == company_id)
             .order_by(Product.name)
         )
@@ -192,40 +206,57 @@ class ProductRepository:
             query = query.where(Product.category_id == category_id)
         r = await self.db.execute(query)
         return r.scalars().all()
+    
 
-    async def get_by_id(self, product_id: int, company_id: int) -> Product | None:
+
+
+
+    async def get_by_id(
+            self, 
+            product_id: int, 
+            company_id: int
+        ) -> Product | None:
         r = await self.db.execute(
-            select(Product).where(
+            select(Product)
+            .options(
+                selectinload(Product.images),
+                selectinload(Product.variants)
+                .selectinload(ProductVariant.images)
+                ,
+                ) 
+            .where(
                 Product.product_id == product_id,
                 Product.company_id == company_id,
             )
         )
         return r.scalar_one_or_none()
 
+
+
+
     async def create(self, data: dict) -> Product:
         obj = Product(**data)
         self.db.add(obj)
         await self.db.commit()
-        await self.db.refresh(obj)
-        return obj
+        return await self.get_by_id(obj.product_id, obj.company_id) 
+
+
 
     async def update(self, obj: Product, data: dict) -> Product:
         for k, v in data.items():
             setattr(obj, k, v)
         await self.db.commit()
-        await self.db.refresh(obj)
-        return obj
+        return await self.get_by_id(obj.product_id, obj.company_id)  
+
+
+
 
     async def delete(self, obj: Product) -> None:
         await self.db.delete(obj)
         await self.db.commit()
 
-    async def update_stock(self, product: Product, qty_change: int) -> Product:
-        product.stock_quantity += qty_change
-        await self.db.commit()
-        await self.db.refresh(product)
-        return product
-
+    
+    
     # --- product_images ---
 
     async def get_all_images(self, product_id: int, company_id: int) -> list[ProductImage]:
@@ -239,10 +270,10 @@ class ProductRepository:
         )
         return r.scalars().all()
 
-    async def get_image_by_id(self, image_id: int, product_id: int, company_id: int) -> ProductImage | None:
+    async def get_image_by_id(self, images_id: int, product_id: int, company_id: int) -> ProductImage | None:
         r = await self.db.execute(
             select(ProductImage).where(
-                ProductImage.image_id   == image_id,
+                ProductImage.images_id   == images_id,
                 ProductImage.product_id == product_id,
                 ProductImage.company_id == company_id,
             )
@@ -284,46 +315,51 @@ class ProductRepository:
 # STOCK MOVEMENT
 # ===========================================================================
 
-
-
-
 class StockMovementRepository:
     def __init__(self, db: AsyncSession):
         self.db = db
-    async def get_all(self, company_id: int, product_id: int | None = None) -> list[StockMovement]:
+
+    async def get_all(self, company_id: int, variant_id: int | None = None):
         query = (
             select(StockMovement)
-            .where(StockMovement.company_id == company_id)
+            .where(
+                StockMovement.company_id == company_id,
+                StockMovement.is_deleted == False,
+            )
             .order_by(StockMovement.date.desc())
         )
-        if product_id:
-            query = query.where(StockMovement.product_id == product_id)
+        if variant_id:
+            query = query.where(StockMovement.variant_id == variant_id)
         r = await self.db.execute(query)
         return r.scalars().all()
-    
-    async def get_by_id(self, movement_id: int, company_id: int) -> StockMovement | None:
+
+    async def get_by_id(self, movement_id: int, company_id: int):
         r = await self.db.execute(
             select(StockMovement).where(
                 StockMovement.movement_id == movement_id,
                 StockMovement.company_id  == company_id,
+                StockMovement.is_deleted  == False,
             )
         )
         return r.scalar_one_or_none()
-    
+
     async def create(self, data: dict) -> StockMovement:
         obj = StockMovement(**data)
         self.db.add(obj)
         await self.db.commit()
         await self.db.refresh(obj)
         return obj
-    
-    async def deleted(self, obj: StockMovement) -> None:
+
+    async def update(self, obj: StockMovement, data: dict) -> StockMovement:  # ADD
+        for k, v in data.items():
+            setattr(obj, k, v)
+        await self.db.commit()
+        await self.db.refresh(obj)
+        return obj
+
+    async def delete(self, obj: StockMovement) -> None:
         await self.db.delete(obj)
         await self.db.commit()
-
-
-
-
 
 # ===========================================================================
 # INVOICE
@@ -333,9 +369,17 @@ class InvoiceRepository:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def get_all(self, company_id: int, customer_id: int | None = None) -> list[Invoice]:
+    async def get_all(
+            self, 
+            company_id: int, 
+            customer_id: int | None = None
+        ) -> list[Invoice]:
         query = (
             select(Invoice)
+            .options(
+                selectinload(Invoice.items),
+                selectinload(Invoice.attachments)
+                )
             .where(Invoice.company_id == company_id)
             .order_by(Invoice.created_at.desc())
         )
@@ -344,37 +388,72 @@ class InvoiceRepository:
         r = await self.db.execute(query)
         return r.scalars().all()
 
+
+
+
+
     async def get_by_id(self, invoice_id: int, company_id: int) -> Invoice | None:
         r = await self.db.execute(
-            select(Invoice).where(
+            select(Invoice)
+            .options(
+                selectinload(Invoice.items),
+                selectinload(Invoice.attachments),
+            )
+            .where(
                 Invoice.invoice_id == invoice_id,
                 Invoice.company_id == company_id,
             )
         )
         return r.scalar_one_or_none()
+    
+
 
     async def create(self, data: dict) -> Invoice:
         obj = Invoice(**data)
         self.db.add(obj)
-        await self.db.flush()   # get invoice_id without committing (items added next)
+        await self.db.flush()  
         return obj
 
     async def create_item(self, data: dict) -> InvoiceItem:
         obj = InvoiceItem(**data)
         self.db.add(obj)
-        return obj              # caller does commit_and_refresh after all items
+        return obj           
 
     async def commit_and_refresh(self, obj: Invoice) -> Invoice:
         await self.db.commit()
-        await self.db.refresh(obj)
-        return obj
+        r = await self.db.execute(
+            select(Invoice)
+            .options(
+                selectinload(Invoice.items),
+                selectinload(Invoice.attachments),
+            )
+            .where(Invoice.invoice_id == obj.invoice_id)
+        )
+        return r.scalar_one()
+
+
+
+
+
 
     async def update(self, obj: Invoice, data: dict) -> Invoice:
         for k, v in data.items():
             setattr(obj, k, v)
         await self.db.commit()
-        await self.db.refresh(obj)
-        return obj
+        r = await self.db.execute(
+            select(Invoice)
+            .options(
+                selectinload(Invoice.items),
+                selectinload(Invoice.attachments),
+            )
+            .where(Invoice.invoice_id == obj.invoice_id)
+        )
+        return r.scalar_one()
+
+
+
+
+
 
     async def delete(self, obj: Invoice) -> None:
         await self.db.delete(obj)
@@ -433,13 +512,17 @@ class InvoiceAttachmentRepository:
 
 
 
-    async def delete_all_by_invoice(self, invoice_id: int, company_id: int) -> list[str]:
+    async def delete_all_by_invoice(
+            self, 
+            invoice_id: int, 
+            company_id: int
+        ) -> list[str]:
         """
         Fetches all public_ids for Cloudinary cleanup, then bulk-deletes all
         attachment rows. Called by the service before deleting an invoice.
         """
         attachments = await self.get_all(invoice_id, company_id)
-        public_ids  = [a.public_id for a in attachments]
+        public_ids  = [a.public_id for a in attachments if a.public_id]
         for att in attachments:
             await self.db.delete(att)
         await self.db.commit()

@@ -1,8 +1,13 @@
+from datetime import datetime
+
 from fastapi import HTTPException, UploadFile, status, Depends
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from decimal import Decimal
 from app.dependencies import get_db, get_redis_client
 import redis.asyncio as redis
+from app.models.products.product import Product
+from app.repositories.inventory.product_variant_repo import ProductVariantRepository
 from app.services.communication.notifications_service import NotificationService
 from app.repositories.inventory.inventory_repository import (
     SupplierRepository,
@@ -22,7 +27,7 @@ from app.schemas.schema import (
     StockMovementCreate,
     InvoiceCreate, InvoiceUpdate,
 )
-from app.models.supplier import Supplier
+from app.models.supplier.supplier import Supplier
 
 from app.services.storage import CloudinaryStorage
 storage = CloudinaryStorage()
@@ -32,12 +37,20 @@ storage = CloudinaryStorage()
 # ===========================================================================
 
 
+
+
+
+
+
+
+
 class SupplierService:
     def __init__(
         self, 
         db: AsyncSession,
         repo = SupplierRepository
     ):
+        self.db = db
         self.repo = repo
 
     async def get_all(self, company_id: int):
@@ -59,10 +72,12 @@ class SupplierService:
 
 
 
-
-
-
-    async def create(self, data: SupplierCreate, company_id: int, avatar: UploadFile | None = None):
+    async def create(
+            self, 
+            data: SupplierCreate, 
+            company_id: int, 
+            avatar: UploadFile | None = None
+        ):
         payload = {**data.model_dump(), "company_id": company_id}
 
         if avatar:
@@ -71,6 +86,11 @@ class SupplierService:
             payload["avatar_public_id"] = result["public_id"]
 
         return await self.repo.create(payload)
+
+    
+
+
+
 
     
 
@@ -96,12 +116,18 @@ class SupplierService:
 
 
 
-    async def delete_avatar(self, supplier_id: int, company_id: int):
+
+
+
+    async def delete_avatar(
+            self, 
+            supplier_id: int, 
+            company_id: int
+        ):
         """Remove avatar from Cloudinary and clear DB fields."""
         obj = await self.get_by_id(supplier_id, company_id)
         if not obj.avatar_public_id:
             raise HTTPException(404, "Supplier has no avatar.")
-
         await storage.delete_asset(obj.avatar_public_id)
         return await self.repo.update(obj, {"avatar_url": None, "avatar_public_id": None})
 
@@ -116,6 +142,15 @@ class SupplierService:
 
         await self.repo.delete(obj)
         return {"message": f"Supplier '{obj.name}' deleted."}
+
+
+
+
+
+
+
+
+
 
 
 # ===========================================================================
@@ -147,24 +182,45 @@ class CustomerService:
         ):
         self.custom_repo = custom_repo
 
+
+
+
     async def get_all(self, company_id: int):
         return await self.custom_repo.get_all(company_id)
+    
+
+
+
 
     async def get_by_id(self, customer_id: int, company_id: int):
         obj = await self.custom_repo.get_by_id(customer_id, company_id)
         if not obj:
             raise HTTPException(404, f"Customer id={customer_id} not found.")
         return obj
+    
 
-    async def create(self, data: CustomerCreate, company_id: int, avatar: UploadFile | None = None):
-        payload = {**data.model_dump(), "company_id": company_id}
 
+    async def create(
+            self,
+            data: CustomerCreate, 
+            company_id: int, 
+            avatar: UploadFile | None = None
+        ):
+        payload = {
+            "name": data.name,
+            "email": data.email,
+            "phone": data.phone,
+            "company_id": company_id,
+        }
         if avatar:
             result = await storage.upload_image(avatar, folder=f"customers/{company_id}")
-            payload["avatar_url"]       = result["secure_url"]
+            payload["avatar_url"] = result["secure_url"]
             payload["avatar_public_id"] = result["public_id"]
 
         return await self.custom_repo.create(payload)
+
+
+
 
     async def update(
         self,
@@ -186,6 +242,15 @@ class CustomerService:
 
         return await self.custom_repo.update(obj, payload)
     
+
+
+
+
+
+
+
+
+
     async def delete_avatar(self, customer_id: int, company_id: int):
         obj = await self.get_by_id(customer_id, company_id)
         if not obj.avatar_public_id:
@@ -194,11 +259,20 @@ class CustomerService:
         await storage.delete_asset(obj.avatar_public_id)
         return await self.custom_repo.update(obj, {"avatar_url": None, "avatar_public_id": None})
 
+
+
+
+
     async def delete(self, customer_id: int, company_id: int) -> dict:
         obj = await self.get_by_id(customer_id, company_id)
 
+
         if obj.avatar_public_id:
             await storage.delete_asset(obj.avatar_public_id)
+
+
+
+
 
         await self.custom_repo.delete(obj)
         return {"message": f"Customer '{obj.name}' deleted."}
@@ -254,6 +328,8 @@ class CategoryService:
         return await self.cate_repo.create(payload)
     
 
+    
+
     async def update(
         self,
         category_id: int,
@@ -276,12 +352,18 @@ class CategoryService:
 
 
 
+
+
+
+
     async def delete_image(self, category_id: int, company_id: int):
         obj = await self.get_by_id(category_id, company_id)
         if not obj.image_public_id:
             raise HTTPException(404, "Category has no image.")
-
-        await storage.delete_asset(obj.image_public_id)
+        try: 
+             await storage.delete_asset(obj.image_public_id)
+        except Exception as e:
+              print(f"Warning: Cloudinary delete failed: {e}")
         return await self.cate_repo.update(obj, {"image_url": None, "image_public_id": None})
 
 
@@ -289,8 +371,13 @@ class CategoryService:
 
     async def delete(self, category_id: int, company_id: int) -> dict:
         obj = await self.get_by_id(category_id, company_id)
+        
         if obj.image_public_id:
-            await storage.delete_asset(obj.image_public_id)
+            try:
+                await storage.delete_asset(obj.image_public_id)
+            except Exception as e:
+                print(f"Warning: Cloudinary cleanup failed for {obj.image_public_id}: {e}")
+        
         await self.cate_repo.delete(obj)
         return {"message": f"Category '{obj.category_name}' deleted."}
     
@@ -316,30 +403,76 @@ async def get_category_service(
 # PRODUCT SERVICE
 # ===========================================================================
 
+
+
+
 class ProductService:
     def __init__(
         self, 
         db: AsyncSession,
+        redis_client: redis.Redis,
         product_repo: ProductRepository,
         ):
+        self.db = db
+        self.redis_client = redis_client
         self.product_repo=product_repo
 
-    async def get_all(self, company_id: int, category_id: int | None = None):
+
+
+
+
+    async def get_all(
+            self, 
+            company_id: int, 
+            category_id: int | None = None
+        ):
         return await self.product_repo.get_all(company_id, category_id)
 
-    async def get_by_id(self, product_id: int, company_id: int):
+
+
+
+
+
+
+
+    async def get_by_id(
+            self, 
+            product_id: int, 
+            company_id: int
+        ):
         obj = await self.product_repo.get_by_id(product_id, company_id)
         if not obj:
             raise HTTPException(404, f"Product id={product_id} not found.")
         return obj
+    
 
-    async def create(self, data: ProductCreate, company_id: int):
-        """Create product (no image here — images are added via add_image)."""
-        return await self.product_repo.create({**data.model_dump(), "company_id": company_id})
 
-    async def update(self, product_id: int, data: ProductUpdate, company_id: int):
+
+    async def create(
+            self, 
+            data: ProductCreate, 
+            company_id: int
+        ):
+        return await self.product_repo.create(
+            {
+                **data.model_dump(), 
+                "company_id": company_id
+            })
+
+
+
+    async def update(
+            self, 
+            product_id: int, 
+            data: ProductUpdate, 
+            company_id: int
+        ):
         obj = await self.get_by_id(product_id, company_id)
         return await self.product_repo.update(obj, data.model_dump(exclude_none=True))
+
+
+
+
 
     # -------------------------------------------------------------------------
     # Product Images  (product_images table — multi-image)
@@ -358,47 +491,54 @@ class ProductService:
         result = await storage.upload_image(image, folder=f"products/{company_id}/{product_id}")
 
         return await self.product_repo.create_image({
-            "company_id":  company_id,
-            "product_id":  product_id,
-            "image_url":   result["secure_url"],
-            "public_id":   result["public_id"],
-            "is_primary":  is_primary,
-            "sort_order":  sort_order,
-        })
+        "company_id":      company_id,
+        "product_id":      product_id,
+        "image_url":       result["secure_url"],
+        "image_public_id": result["public_id"], 
+        "is_primary":      is_primary,
+        "sort_order":      sort_order,
+    })
 
-    async def set_primary_image(self, product_id: int, image_id: int, company_id: int):
+
+
+    
+
+    async def set_primary_image(self, product_id: int, images_id: int, company_id: int):
         """
         Mark one image as primary and demote all others.
         Raises 404 if the image doesn't belong to this product/company.
         """
-        img = await self.product_repo.get_image_by_id(image_id, product_id, company_id)
+        img = await self.product_repo.get_image_by_id(images_id, product_id, company_id)
         if not img:
-            raise HTTPException(404, f"Product image id={image_id} not found.")
+            raise HTTPException(404, f"Product image id={images_id} not found.")
 
         await self.product_repo.clear_primary_flags(product_id, company_id)
         return await self.product_repo.update_image(img, {"is_primary": True})
 
-    async def delete_image(self, product_id: int, image_id: int, company_id: int) -> dict:
+    async def delete_image(self, product_id: int, images_id: int, company_id: int) -> dict:
         """Delete a single product image from Cloudinary and the DB."""
-        img = await self.product_repo.get_image_by_id(image_id, product_id, company_id)
+        img = await self.product_repo.get_image_by_id(images_id, product_id, company_id)
         if not img:
-            raise HTTPException(404, f"Product image id={image_id} not found.")
+            raise HTTPException(404, f"Product image id={images_id} not found.")
+        
 
-        await storage.delete_asset(img.public_id)
+        await storage.delete_asset(img.image_public_id)
         await self.product_repo.delete_image(img)
-        return {"message": f"Product image id={image_id} deleted."}
+        return {"message": f"Product image id={images_id} deleted."}
 
     async def delete(self, product_id: int, company_id: int) -> dict:
         obj = await self.get_by_id(product_id, company_id)
 
-        # Delete all Cloudinary images for this product
         images = await self.product_repo.get_all_images(product_id, company_id)
         for img in images:
-            await storage.delete_asset(img.public_id)
-
+            if img.image_public_id:
+                await storage.delete_asset(img.image_public_id)
         await self.product_repo.delete(obj)
         return {"message": f"Product '{obj.name}' deleted."}
     
+
+
+
 # ===========================================================================
 # FACTORY
 # ===========================================================================
@@ -413,6 +553,10 @@ async def get_product_service(
         redis_client  = redis_client
     )
 
+
+
+
+
 # ===========================================================================
 # STOCK MOVEMENT SERVICE
 # ===========================================================================
@@ -422,33 +566,54 @@ class StockMovementService:
         self, 
         db: AsyncSession,
         repo_stock: StockMovementRepository,
-        product_repo: ProductRepository,
+        variant_repo: ProductVariantRepository,
         redis_client: redis.Redis,
     ):
         self.repo_stock = repo_stock  
-        self.product_repo = product_repo
+        self.variant_repo = variant_repo
+        self.notify = NotificationService(db=db, redis_client=redis_client)
 
-        self.notify = NotificationService(
-            db=db,
-            redis_client=redis_client
-        )
 
-    async def get_all(self, company_id: int, product_id: int | None = None):
-        return await self.repo_stock.get_all(company_id, product_id)
+
+
+
+    async def get_all(
+            self, 
+            company_id: int, 
+            variant_id: int | None = None
+        ):
+        return await self.repo_stock.get_all(company_id, variant_id)
     
-    async def get_by_id(self, movement_id: int, company_id: int):
+
+
+    async def get_by_id(
+            self, 
+            movement_id: int, 
+            company_id: int
+        ):
         obj = await self.repo_stock.get_by_id(movement_id, company_id)
         if not obj:
             raise HTTPException(404, f"Movement id={movement_id} not found.")
         return obj
     
-    async def create(self, data: StockMovementCreate, company_id: int):
-        product = await self.product_repo.get_by_id(data.product_id, company_id)
-        if not product:
-            raise HTTPException(404, f"Product id={data.product_id} not found.")
 
-        opening_balance = product.stock_quantity
+    
+    async def create(
+            self, 
+            data: StockMovementCreate, 
+            company_id: int
+        ):
+        variant  = await self.variant_repo.get_by_id(
+            data.variant_id, 
+            data.product_id, 
+            company_id
+        ) 
+        if not variant :
+            raise HTTPException(404, f"Variant id={data.variant_id} not found.")
+        opening_balance = variant.stock_quantity
         new_balance     = opening_balance + data.qty_in - data.qty_out
+
+
 
         if new_balance < 0:
             raise HTTPException(
@@ -457,19 +622,41 @@ class StockMovementService:
             )
 
         movement = await self.repo_stock.create({
-            **data.model_dump(),
+            **data.model_dump(exclude={"product_id", "opening_balance", "balance_quantity"}),
             "company_id":       company_id,
             "opening_balance":  opening_balance,
             "balance_quantity": new_balance,
         })
-
-        await self.product_repo.update_stock(product, data.qty_in - data.qty_out)
+        # await self.variant_repo.update(variant, data.qty_in - data.qty_out)
+        await self.variant_repo.update(variant, {"stock_quantity": new_balance})
         return movement
+    
 
     async def deletes(self, movement_id: int, company_id: int) -> dict:
         obj = await self.get_by_id(movement_id, company_id)
-        await self.repo_stock.deleted(obj)
-        return {"message": f"Movement id={movement_id} deleted."}
+        variant = await self.variant_repo.get_by_id_only(obj.variant_id)
+        if not variant:
+            raise  HTTPException(404, f'Variant d={obj.variant_id} not found')
+        
+        reversed_balance = variant.stock_quantity - obj.qty_in + obj.qty_out
+
+        if  reversed_balance < 0 :
+             raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot delete movement. Reversing it would result in negative stock ({reversed_balance}).",
+           )
+    
+        await self.repo_stock.update(obj, {
+            "is_deleted": True,
+            "deleted_at": datetime.utcnow(),
+        })
+        await self.variant_repo.update(variant, {"stock_quantity": reversed_balance})
+
+
+        return {"message": f"Movement id={movement_id} deleted and stock reversed."}
+    
+
+
 
 # ===========================================================================
 # FACTORY
@@ -483,7 +670,7 @@ async def get_stock_service(
     return StockMovementService(
         db            = db,
         repo_stock    = StockMovementRepository(db),
-        product_repo  =   ProductRepository(db),
+        variant_repo  =   ProductVariantRepository(db),
         redis_client  = redis_client,
     )
 
@@ -496,26 +683,33 @@ class InvoiceService:
             self, 
             db: AsyncSession,
             repo:     InvoiceRepository,
-            product_repo: ProductRepository,
+            variant_repo: ProductVariantRepository,
             invoice_attach_repo: InvoiceAttachmentRepository,
             redis_client: redis.Redis,
             ):
             self.repo         = repo
-            self.product_repo = product_repo
+            self.variant_repo = variant_repo
             self.invoice_attach_repo = invoice_attach_repo
             self.notify       = NotificationService(
                 db             = db,
                 redis_client  = redis_client,
             )
+  
     # -----------------------------------------------------------------------
     # GET all
     # -----------------------------------------------------------------------
+
+
     async def get_all(self, company_id: int, customer_id: int) -> list[Invoice]:
         return await self.repo.get_all(company_id, customer_id)
     
+
+
     # -----------------------------------------------------------------------
     # GET by id
     # -----------------------------------------------------------------------
+
+
     async def get_by_id(self, invoice_id: int, company_id: int) -> Invoice:
         obj = await self.repo.get_by_id(invoice_id, company_id)
         if not obj:
@@ -524,6 +718,8 @@ class InvoiceService:
                 detail=f'Invoice id={invoice_id} not found.',
             )
         return obj
+    
+
     # -----------------------------------------------------------------------
     # GET by user_id
     # -----------------------------------------------------------------------
@@ -543,18 +739,31 @@ class InvoiceService:
                 "company_id":  company_id,
                 "invoice_id":  invoice.invoice_id,
                 "product_id":  item.product_id,
+                "variant_id":  item.variant_id,
                 "quantity":    item.quantity,
                 "unit_price":  item.unit_price,
                 "total_price": Decimal(str(item.quantity)) * item.unit_price,
             })
-            product = await self.product_repo.get_by_id(item.product_id, company_id)
-            if product:
-                await self.product_repo.update_stock(product, -item.quantity)
+            variant = await self.variant_repo.get_by_id_only(item.variant_id)
+
+            if variant:
+                await self.variant_repo.update(
+                    variant,
+                    {"stock_quantity": variant.stock_quantity - item.quantity}
+                )
 
         return await self.repo.commit_and_refresh(invoice)
 
 
-    async def update(self, invoice_id: int, data: InvoiceUpdate, company_id: int):
+
+
+
+    async def update(
+            self, 
+            invoice_id: int, 
+            data: InvoiceUpdate, 
+            company_id: int
+        ):
         obj = await self.get_by_id(invoice_id, company_id)
         return await self.repo.update(obj, data.model_dump(exclude_none=True))
 
@@ -586,7 +795,12 @@ class InvoiceService:
 
 
 
-    async def delete_attachment(self, invoice_id: int, attachment_id: int, company_id: int) -> dict:
+    async def delete_attachment(
+            self, 
+            invoice_id: int, 
+            attachment_id: int, 
+            company_id: int
+        ) -> dict:
         """Delete a single invoice attachment from Cloudinary and the DB."""
         att = await self.invoice_attach_repo.get_by_id(attachment_id, invoice_id, company_id)
         if not att:
@@ -594,17 +808,17 @@ class InvoiceService:
 
         await storage.delete_asset(att.public_id)
 
-        await self.invoice_attach_repo.delete_all_by_invoice(att)
+        await self.invoice_attach_repo.delete(att)
 
         return {"message": f"Attachment id={attachment_id} deleted."}
     
 
 
-
-
-
-
-    async def delete(self, invoice_id: int, company_id: int) -> dict:
+    async def delete(
+            self, 
+            invoice_id: int, 
+            company_id: int
+        ) -> dict:
         obj = await self.get_by_id(invoice_id, company_id)
 
         # Delete all Cloudinary attachments for this invoice
@@ -615,7 +829,10 @@ class InvoiceService:
         await self.repo.delete(obj)
         return {"message": f"Invoice id={invoice_id} deleted."}
 
-# ===========================================================================
+# ===============
+# 
+# 
+# ============================================================
 # FACTORY
 # ===========================================================================
 
@@ -626,7 +843,7 @@ async def get_Invoice_service(
     return InvoiceService(
         db           = db,
         repo         = InvoiceRepository(db),
-        product_repo = ProductRepository(db),
+        variant_repo = ProductVariantRepository(db),
         invoice_attach_repo = InvoiceAttachmentRepository(db),
         redis_client = redis_client,
     )

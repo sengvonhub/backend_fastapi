@@ -4,19 +4,14 @@ from sqlalchemy.sql import func
 from datetime import datetime
 from typing import Optional, TYPE_CHECKING
 from app.db.base import Base
-
-
 if TYPE_CHECKING:
     from ..customer import Customer
     from ..staffs import Staff
     from .invoice_item import InvoiceItem
     from .invoice_attachments import InvoiceAttachment
     from company import Company
-
-
 class Invoice(Base):
     __tablename__ = "invoices"
-
     invoice_id:   Mapped[int]           = mapped_column(Integer, primary_key=True, autoincrement=True)
     company_id:   Mapped[int]           = mapped_column(Integer, ForeignKey("companies.company_id"), nullable=False, index=True)
     customer_id:  Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("customers.customer_id"), nullable=True)

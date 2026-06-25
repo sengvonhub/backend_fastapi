@@ -302,6 +302,12 @@ async def get_all_attendance(
         staff_id    = staff_id,  
     )
 
+
+
+
+
+
+
 @attendance_router.get(
     "/{attendance_id}",
     response_model=AttendanceResponse,

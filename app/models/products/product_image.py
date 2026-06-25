@@ -8,6 +8,7 @@ from app.db.base import Base
 if TYPE_CHECKING:
     from ..company import Company
     from .product import Product
+    from .product_variant import ProductVariant
 
 
 class ProductImage(Base):
@@ -16,6 +17,7 @@ class ProductImage(Base):
     images_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     product_id: Mapped[int] = mapped_column(Integer, ForeignKey("products.product_id"), nullable=False)
     company_id: Mapped[int] = mapped_column(Integer, ForeignKey("companies.company_id"), nullable=False, index=True)
+    variant_id:      Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("product_variants.variant_id"), nullable=True, index=True)
     image_url:      Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     image_public_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     is_primary:      Mapped[bool]          = mapped_column(Boolean,  default=False)
@@ -26,3 +28,5 @@ class ProductImage(Base):
 
     product: Mapped["Product"] = relationship("Product", back_populates="images")
     company: Mapped["Company"] = relationship("Company", back_populates="product_images")
+    variant: Mapped[Optional["ProductVariant"]] = relationship("ProductVariant", back_populates="images")
+

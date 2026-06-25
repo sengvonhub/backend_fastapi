@@ -17,12 +17,13 @@ from app.models.staffs import LeaveRequest, Staff, StaffRole, leave_request, Att
 from app.models.departments import Department
 from app.models.chat import ChatGroup, ChatMessage, ChatGroupMember
 from app.models.invoices import Invoice, InvoiceItem, InvoiceAttachment
-from app.models.products import Product, StockMovement, ProductImage
+from app.models.products import Product, StockMovement, ProductImage, product_variant
 from app.models.Salary import Salary, SalaryAdjustment
 from app.models.audit_log import AuditLog
 from app.models import Category
 from app.models.notification import Notification
-from app.models.supplier import Supplier
+from app.models.supplier.supplier import Supplier
+from app.models.supplier.supplier_product_price import  SupplierProductPrice
 from app.models.system_setting import SystemSetting
 from app.models.company import Company
 from app.models.refresh_token import RefreshToken

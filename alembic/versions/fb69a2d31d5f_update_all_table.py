@@ -42,6 +42,7 @@ def upgrade() -> None:
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.PrimaryKeyConstraint('company_id')
     )
+
     op.create_index(op.f('ix_companies_company_code'), 'companies', ['company_code'], unique=True)
     op.create_index(op.f('ix_companies_company_id'), 'companies', ['company_id'], unique=False)
     op.create_table('categories',

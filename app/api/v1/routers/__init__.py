@@ -6,6 +6,8 @@ from .hr import router_hr
 from .inventory import router_inventory
 from .communication import router_communication
 
+
+
 api_router = APIRouter()
 api_router.include_router(router_auth)
 api_router.include_router(router_hr)

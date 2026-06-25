@@ -6,6 +6,7 @@ from decimal import Decimal
 
 from app.models.staffs.staff import Staff
 from app.models.staffs.staff_role import StaffRole
+from app.models.users.user import User
 from app.schemas.schema import StaffRoleCreate
 
 
@@ -101,7 +102,6 @@ class StaffRolesRepository:
 # ===========================================================================
 # STAFF REPOSITORY
 # ===========================================================================
-
 class StaffRepository:
 
     def __init__(self, db: AsyncSession):
@@ -116,15 +116,16 @@ class StaffRepository:
                 selectinload(Staff.user),
                 selectinload(Staff.staff_role),
             )
-            .where(Staff.company_id == company_id)   # ✅ scope to company
+            .where(Staff.company_id == company_id)  
             .order_by(Staff.name)
         )
         return result.scalars().all()
     
 
-    async def get_by_user_id_list(self, user_id: int, company_id: int):
+    async def get_by_user_id_list(self, user_id: int, company_id: int) -> list[Staff]:
         result = await self.db.execute(
             select(Staff)
+            .options(selectinload(Staff.staff_role))
             .where(
                 Staff.user_id == user_id,
                 Staff.company_id == company_id,
@@ -185,7 +186,7 @@ class StaffRepository:
         self, email: str, company_id: int
     ) -> Staff | None:
         result = await self.db.execute(
-            select(Staff).where(
+            select(Staff).options(selectinload(Staff.staff_role)).where(
                 Staff.email      == email,
                 Staff.company_id == company_id,  
             )
@@ -245,7 +246,7 @@ class StaffRepository:
             .join(Staff.user)
             .where(
                 Staff.company_id         == company_id,
-                Staff.user.has(department_id=department_id),
+                User.department_id == department_id,
             )
         )
         return result.scalars().all()
@@ -257,8 +258,7 @@ class StaffRepository:
     async def create(self, staff: Staff) -> Staff:
         self.db.add(staff)
         await self.db.commit()
-        await self.db.refresh(staff)
-        return staff
+        return await self.get_by_id(staff.staff_id, staff.company_id)
 
 
     # -----------------------------------------------------------------------

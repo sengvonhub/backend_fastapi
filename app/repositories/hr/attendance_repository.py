@@ -58,7 +58,11 @@ class AttendanceRepository:
         await self.db.commit()
         stmt = (
             select(AttendanceRecord)
-            .options(selectinload(AttendanceRecord.staff))
+            .options(
+                selectinload(AttendanceRecord.staff).selectinload(
+                    Staff.staff_role
+                )
+            )
             .where(
                 AttendanceRecord.attendance_id == record.attendance_id
             )
@@ -85,7 +89,11 @@ class AttendanceRepository:
         await self.db.commit()
         stmt = (
             select(AttendanceRecord)
-            .options(selectinload(AttendanceRecord.staff))
+            .options(
+                selectinload(AttendanceRecord.staff).selectinload(
+                    Staff.staff_role
+                )
+            )
             .where(
                 AttendanceRecord.attendance_id == record.attendance_id
             )
@@ -102,7 +110,11 @@ class AttendanceRepository:
     ) -> AttendanceRecord | None:
         result = await self.db.execute(
             select(AttendanceRecord)
-            .options(selectinload(AttendanceRecord.staff))
+            .options(
+                selectinload(AttendanceRecord.staff).selectinload(
+                    Staff.staff_role
+                )
+            )
             .where(
                 AttendanceRecord.attendance_id == attendance_id,
                 AttendanceRecord.company_id    == company_id,  
@@ -127,7 +139,11 @@ class AttendanceRepository:
         query = (
             select(AttendanceRecord)
             .join(Staff, AttendanceRecord.staff_id == Staff.staff_id)
-            .options(selectinload(AttendanceRecord.staff))
+            .options(
+                selectinload(AttendanceRecord.staff).selectinload(
+                    Staff.staff_role
+                )
+            )
             .where(AttendanceRecord.company_id == company_id)
             .order_by(
                 AttendanceRecord.date.desc(),
@@ -167,7 +183,11 @@ class AttendanceRepository:
     ) -> list[AttendanceRecord]:
         query = (
             select(AttendanceRecord)
-            .options(selectinload(AttendanceRecord.staff))
+            .options(
+                selectinload(AttendanceRecord.staff).selectinload(
+                    Staff.staff_role
+                )
+            )
             .where(
                 AttendanceRecord.staff_id   == staff_id,
                 AttendanceRecord.company_id == company_id,  
@@ -208,7 +228,11 @@ class AttendanceRepository:
     ) -> list[AttendanceRecord]:
         query = (
             select(AttendanceRecord)
-            .options(selectinload(AttendanceRecord.staff))
+            .options(
+                selectinload(AttendanceRecord.staff).selectinload(
+                    Staff.staff_role
+                )
+            )
             .where(
                 AttendanceRecord.company_id == company_id,
                 AttendanceRecord.date       >= start_date,
@@ -269,4 +293,3 @@ class AttendanceRepository:
             "full_days":       len(full_days),
             "incomplete_days": len(incomplete),
         }
-    

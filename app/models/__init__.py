@@ -6,7 +6,7 @@ from .staffs import AttendanceRecord, LeaveRequest, Staff, StaffRole, Attendance
 from .notification import Notification
 from .audit_log import AuditLog
 from .system_setting import SystemSetting
-from .supplier import Supplier
+from .supplier.supplier import Supplier
 from .customer import Customer
 from .category import Category
 from .products import Product
