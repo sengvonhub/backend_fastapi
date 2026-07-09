@@ -4,7 +4,8 @@ from datetime import date
 from typing import Optional, List
 import redis.asyncio as redis
 
-from app.models.staffs.leave_request import LeaveStatus, LeaveType
+from app.core.timezone import format_time_for_message
+from app.models.staffs.leave_request import LeaveRequest, LeaveStatus, LeaveType
 from app.repositories.hr.leave_requests_repository import LeaveRequestRepository
 from app.repositories.audit.auditlog_repository import AuditLogRepository
 from app.repositories.hr.staff_repository import StaffRepository
@@ -41,6 +42,11 @@ class LeaveRequestService:
     # HELPER — notify all managers
     # -----------------------------------------------------------------------
 
+    def _to_response(self, leave: LeaveRequest) -> LeaveRequestResponse:
+        data = LeaveRequestResponse.model_validate(leave)
+        data.approved_by_name = leave.approver.name if leave.approver else None
+        return data
+
     async def _notify_managers(
         self,
         company_id:    int,
@@ -73,7 +79,6 @@ class LeaveRequestService:
         current_user_id: int,
         client_ip:       str,
     ) -> LeaveRequestResponse:
-
         if data.start_date > data.end_date:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -90,9 +95,7 @@ class LeaveRequestService:
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Leave period overlaps with an existing approved or pending leave.",
             )
-
         leave = await self.leave_repo.create(data, staff_id, company_id)
-
         await self.audit_repo.log(
             user_id    = current_user_id,
             company_id = company_id,
@@ -110,32 +113,33 @@ class LeaveRequestService:
             },
             ip_address = client_ip,
         )
-
-        # ✅ notify staff — submission confirmation
-        staff = await self.staff_repo.get_by_id(staff_id, company_id)
+        staff = await self.staff_repo.get_by_id(staff_id, company_id)       
+        start_date = format_time_for_message(data.start_date)
+        end_date = format_time_for_message(data.end_date)
         if staff:
             await self.notif.send(
                 company_id     = company_id,
                 user_id        = staff.user_id,
                 title          = "Leave request submitted",
-                message        = f"Your {data.leave_type.value} leave from {data.start_date} to {data.end_date} has been submitted.",
+                message        = f"Your {data.leave_type.value} leave from {start_date} to {end_date} has been submitted.",
                 notif_type     = "info",
                 reference_id   = leave.leave_id,
                 reference_type = "leave_request",
             )
-
-            
-
-        # ✅ notify all managers
         staff_name = staff.name if staff else f"Staff #{staff_id}"
         await self._notify_managers(
             company_id   = company_id,
             title        = "New leave request",
-            message      = f"{staff_name} submitted a {data.leave_type.value} leave from {data.start_date} to {data.end_date}.",
+            message      = f"{staff_name} submitted a {data.leave_type.value} leave from {start_date} to {end_date}.",
             notif_type   = "info",
             reference_id = leave.leave_id,
         )
-        return leave
+        return self._to_response(leave)
+
+
+
+
+
 
     # =========================================================================
     # GET BY ID
@@ -150,45 +154,26 @@ class LeaveRequestService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Leave request id={leave_id} not found.",
             )
-        return leave
+        return self._to_response(leave)
 
     # =========================================================================
     # GET MY LEAVES
     # =========================================================================
 
-    async def get_my_leaves(
-        self,
-        staff_id:   int,
-        company_id: int,
-        skip:       int = 0,
-        limit:      int = 50,
-    ) -> List[LeaveRequestResponse]:
-        return await self.leave_repo.get_by_staff_id(
-            staff_id   = staff_id,
-            company_id = company_id,
-            skip       = skip,
-            limit      = limit,
-        )
+    async def get_my_leaves(self, staff_id, company_id, skip=0, limit=50):
+        leaves = await self.leave_repo.get_by_staff_id(
+            staff_id=staff_id, company_id=company_id, skip=skip, limit=limit)
+        return [self._to_response(l) for l in leaves]
 
     # =========================================================================
     # GET ALL
     # =========================================================================
 
-    async def get_all(
-        self,
-        company_id: int,
-        skip:       int                   = 0,
-        limit:      int                   = 50,
-        status:     Optional[LeaveStatus] = None,
-        leave_type: Optional[LeaveType]   = None,
-    ) -> List[LeaveRequestResponse]:
-        return await self.leave_repo.get_all(
-            company_id = company_id,
-            skip       = skip,
-            limit      = limit,
-            status     = status,
-            leave_type = leave_type,
-        )
+    async def get_all(self, company_id, skip=0, limit=50, status=None, leave_type=None):
+        leaves = await self.leave_repo.get_all(
+            company_id=company_id, skip=skip, limit=limit,
+            status=status, leave_type=leave_type)
+        return [self._to_response(l) for l in leaves]
 
 
 
@@ -197,17 +182,10 @@ class LeaveRequestService:
     # GET PENDING
     # =========================================================================
 
-    async def get_pending(
-        self,
-        company_id: int,
-        skip:       int = 0,
-        limit:      int = 50,
-    ) -> List[LeaveRequestResponse]:
-        return await self.leave_repo.get_pending(
-            company_id = company_id,
-            skip       = skip,
-            limit      = limit,
-        )
+    async def get_pending(self, company_id, skip=0, limit=50):
+        leaves = await self.leave_repo.get_pending(
+            company_id=company_id, skip=skip, limit=limit)
+        return [self._to_response(l) for l in leaves]
 
     # =========================================================================
     # APPROVE — notify staff + all managers
@@ -247,12 +225,14 @@ class LeaveRequestService:
         )
 
         # ✅ notify staff — approved
+        start_date = format_time_for_message(leave.start_date)
+        end_date = format_time_for_message(leave.end_date)
         if leave.staff:
             await self.notif.send(
                 company_id     = company_id,
                 user_id        = leave.staff.user_id,
                 title          = "Leave approved",
-                message        = f"Your leave from {leave.start_date} to {leave.end_date} has been approved.",
+                message        = f"Your leave from {start_date} to {end_date} has been approved.",
                 notif_type     = "success",
                 reference_id   = leave_id,
                 reference_type = "leave_request",
@@ -263,12 +243,11 @@ class LeaveRequestService:
         await self._notify_managers(
             company_id   = company_id,
             title        = "Leave approved",
-            message      = f"{staff_name}'s leave from {leave.start_date} to {leave.end_date} was approved.",
+            message      = f"{staff_name}'s leave from {start_date} to {end_date} was approved.",
             notif_type   = "success",
             reference_id = leave_id,
         )
-
-        return updated
+        return self._to_response(updated)
 
     # =========================================================================
     # REJECT — notify staff + all managers
@@ -308,12 +287,14 @@ class LeaveRequestService:
         )
 
         # ✅ notify staff — rejected
+        start_date = format_time_for_message(leave.start_date)
+        end_date = format_time_for_message(leave.end_date)
         if leave.staff:
             await self.notif.send(
                 company_id     = company_id,
                 user_id        = leave.staff.user_id,
                 title          = "Leave rejected",
-                message        = f"Your leave from {leave.start_date} to {leave.end_date} was rejected. Reason: {reason or 'No reason provided'}.",
+                message        = f"Your leave from {start_date} to {end_date} was rejected. Reason: {reason or 'No reason provided'}.",
                 notif_type     = "warning",
                 reference_id   = leave_id,
                 reference_type = "leave_request",
@@ -329,7 +310,7 @@ class LeaveRequestService:
             reference_id = leave_id,
         )
 
-        return updated
+        return self._to_response(updated)
 
     # =========================================================================
     # CANCEL — notify staff + all managers
@@ -372,12 +353,14 @@ class LeaveRequestService:
 
         # ✅ notify staff — cancelled confirmation
         staff = await self.staff_repo.get_by_id(staff_id, company_id)
+        start_date = format_time_for_message(leave.start_date)
+        end_date = format_time_for_message(leave.end_date)
         if staff:
             await self.notif.send(
                 company_id     = company_id,
                 user_id        = staff.user_id,
                 title          = "Leave cancelled",
-                message        = f"Your leave from {leave.start_date} to {leave.end_date} has been cancelled.",
+                message        = f"Your leave from {start_date} to {end_date} has been cancelled.",
                 notif_type     = "info",
                 reference_id   = leave_id,
                 reference_type = "leave_request",
@@ -388,12 +371,12 @@ class LeaveRequestService:
         await self._notify_managers(
             company_id   = company_id,
             title        = "Leave cancelled",
-            message      = f"{staff_name} cancelled their leave from {leave.start_date} to {leave.end_date}.",
+            message      = f"{staff_name} cancelled their leave from {start_date} to {end_date}.",
             notif_type   = "info",
             reference_id = leave_id,
         )
 
-        return updated
+        return self._to_response(updated)
 
     # =========================================================================
     # DELETE
@@ -455,6 +438,10 @@ class LeaveRequestService:
             "used":          total_allowed - balance,
             "remaining":     balance,
         }
+    
+
+
+
 
     async def get_summary(self, company_id: int) -> dict:
         total    = await self.leave_repo.count_total(company_id)
@@ -467,7 +454,6 @@ class LeaveRequestService:
             "approved": approved,
             "rejected": rejected,
         }
-
 
 # =============================================================================
 # FACTORY

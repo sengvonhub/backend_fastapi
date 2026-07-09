@@ -2,7 +2,6 @@
         # # 2. Replace Logo  use later
         # # -------------------------
 
-        
         # if logo:
         #     # upload new
         #     uploaded = await upload_asset(logo, folder="companies/logo")

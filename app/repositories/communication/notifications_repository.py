@@ -1,7 +1,9 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_, update
+from sqlalchemy import String, case, cast, select, func, and_, update
 
 from app.models.notification import Notification
+from app.schemas.schema import NotificationResponse
+from app.models.staffs.leave_request import LeaveRequest 
 
 
 class NotificationRepository:
@@ -13,25 +15,59 @@ class NotificationRepository:
     # Get all notifications for a user
     # -----------------------------------------------------------------------
 
+
+
+
     async def get_by_user(
-            self,
-            user_id:     int,
-            company_id:  int,
-            unread_only: bool = False,
-        ) -> list[Notification]:
-            
-            query = select(Notification).where(
+        self,
+        user_id:     int,
+        company_id:  int,
+        unread_only: bool = False,
+    ) -> list[NotificationResponse]:
+
+        query = (
+            select(
+                Notification,
+                case(
+                    (Notification.reference_type == 'leave_request',
+                    cast(LeaveRequest.status, String)),  
+                    else_=None,
+                ).label('reference_status'),
+            )
+            .outerjoin(
+                LeaveRequest,
+                and_(
+                    LeaveRequest.leave_id == Notification.reference_id,
+                    Notification.reference_type == 'leave_request',
+                )
+            )
+            .where(
                 Notification.user_id    == user_id,
                 Notification.company_id == company_id,
             )
+            .order_by(Notification.created_at.desc())
+        )
 
-            if unread_only:
-                query = query.where(Notification.is_read == False)  
 
-            query = query.order_by(Notification.created_at.desc()) 
 
-            result = await self.db.execute(query)
-            return result.scalars().all()
+
+
+        if unread_only:
+            query = query.where(Notification.is_read == False)
+
+        result = await self.db.execute(query)
+        rows = result.all()
+
+        # ✅ Build response with reference_status attached
+        responses = []
+        for notification, reference_status in rows:
+            data = NotificationResponse.model_validate(notification)
+            data.reference_status = reference_status
+            responses.append(data)
+
+        return responses
+
+
 
     
     # -----------------------------------------------------------------------

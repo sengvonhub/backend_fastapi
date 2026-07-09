@@ -1,6 +1,7 @@
 import json
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.websockets.notification_handler import NotificationWebSocketHandler
 from app.websockets.ws_manager import ws_manager
 from app.core.security import decode_access_token
 from app.dependencies import get_db
@@ -8,7 +9,21 @@ from app.repositories.communication.notifications_repository import Notification
 
 ws_router = APIRouter(tags=["WebSocket"])
 
+
+
+# ==============================================================
+# 
+# ==============================================================
+
+
+
+
+
 # ws://localhost:8000/ws/notifications?token=<access_token>
+
+# ==============================================================
+# 
+# ==============================================================
 
 @ws_router.websocket("/ws/notifications")
 async def notification_websocket(
@@ -16,9 +31,8 @@ async def notification_websocket(
     token:     str          = Query(..., description="JWT access token"),
     db:        AsyncSession = Depends(get_db),
 ):
-    
+ 
     print("WS ROUTE HIT")
-
 
     """
     Real-time notification WebSocket.
@@ -45,7 +59,11 @@ async def notification_websocket(
     { "type": "pong" }
     """
 
+    # ====================================================
     # 1. Verify JWT token
+    # ====================================================
+
+
     try:
         payload = decode_access_token(token)
         user_id    = int(payload["sub"])
@@ -56,6 +74,7 @@ async def notification_websocket(
     
     # 2. Register connection
     await ws_manager.connect(websocket, user_id)
+    await ws_manager.broadcast_presence(company_id)
     # 3. Send unread count on connect
     try:
         repo    = NotificationRepository(db)
@@ -78,5 +97,12 @@ async def notification_websocket(
                     await websocket.send_text(json.dumps({"type": "pong"}))
             except Exception:
                 pass
+
+            finally:
+                ws_manager.disconnect(websocket, user_id)
+                await ws_manager.broadcast_presence(company_id)
+
+        
+
     except WebSocketDisconnect:
         ws_manager.disconnect(websocket, user_id)

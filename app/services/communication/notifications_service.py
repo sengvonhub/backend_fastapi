@@ -17,7 +17,7 @@ class NotificationService:
         redis_client: redis.Redis | None = None,
     ):
         self.repo         = NotificationRepository(db)
-        self.redis_client = redis_client   # ✅ for real-time push
+        self.redis_client = redis_client  
 
     # -----------------------------------------------------------------------
     # SEND — save to DB + push via Redis Pub/Sub → WebSocket
@@ -70,6 +70,10 @@ class NotificationService:
             )
 
         return notif
+    
+
+
+    
 
     # -----------------------------------------------------------------------
     # GET my notifications
@@ -206,9 +210,6 @@ class NotificationService:
 # =============================================================================
 # FACTORY — inject both db and redis
 # =============================================================================
-
-
-
 
 async def get_notification_service(
     db:           AsyncSession  = Depends(get_db),

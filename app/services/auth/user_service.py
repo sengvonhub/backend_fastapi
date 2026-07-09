@@ -233,6 +233,8 @@ class UserService:
     # GET ALL
     # ==========================================================================
 
+
+
     async def get_all_users(
         self, company_id: int, skip: int, limit: int
     ) -> list[User]:

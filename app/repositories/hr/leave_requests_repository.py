@@ -2,6 +2,7 @@ from sqlalchemy import select, func, and_, extract
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 from datetime import date
+from sqlalchemy.orm import selectinload
 from typing import Optional, List
 
 from app.models.staffs.leave_request import LeaveRequest, LeaveStatus, LeaveType
@@ -21,32 +22,40 @@ class LeaveRequestRepository:
         self, data: LeaveRequestCreate, staff_id: int, company_id: int
     ) -> LeaveRequest:
         leave = LeaveRequest(
-            company_id = company_id,       # ✅ required
+            company_id = company_id,     
             staff_id   = staff_id,
             leave_type = data.leave_type,
             start_date = data.start_date,
             end_date   = data.end_date,
             reason     = data.reason,
-            status     = LeaveStatus.pending,  # ✅ always start as pending
+            status     = LeaveStatus.pending,  
         )
         self.db.add(leave)
         await self.db.commit()
-        await self.db.refresh(leave)
-        return leave
+
+        result = await self.db.execute(
+            select(LeaveRequest)
+            .options(selectinload(LeaveRequest.staff))
+            .where(LeaveRequest.leave_id == leave.leave_id)
+        )
+        return result.scalar_one()
 
     # =========================================================================
     # GET BY ID
     # =========================================================================
 
     async def get_by_id(
-        self, leave_id: int, company_id: int
+    self, leave_id: int, company_id: int
     ) -> Optional[LeaveRequest]:
         result = await self.db.execute(
             select(LeaveRequest)
-            .options(joinedload(LeaveRequest.staff))
+            .options(
+                joinedload(LeaveRequest.staff),
+                joinedload(LeaveRequest.approver), 
+            )
             .where(
                 LeaveRequest.leave_id   == leave_id,
-                LeaveRequest.company_id == company_id,   # ✅ scope to company
+                LeaveRequest.company_id == company_id,
             )
         )
         return result.unique().scalar_one_or_none()
@@ -55,22 +64,18 @@ class LeaveRequestRepository:
     # GET BY STAFF — staff views own requests
     # =========================================================================
 
-    async def get_by_staff_id(
-        self,
-        staff_id:   int,
-        company_id: int,
-        skip:       int = 0,
-        limit:      int = 50,
-    ) -> List[LeaveRequest]:
+    async def get_by_staff_id(self, staff_id, company_id, skip=0, limit=50):
         result = await self.db.execute(
             select(LeaveRequest)
-            .options(joinedload(LeaveRequest.staff))
+            .options(
+                joinedload(LeaveRequest.staff),
+                joinedload(LeaveRequest.approver), 
+            )
             .where(
                 LeaveRequest.staff_id   == staff_id,
-                LeaveRequest.company_id == company_id,   # ✅ scope to company
+                LeaveRequest.company_id == company_id,
             )
-            .offset(skip)
-            .limit(limit)
+            .offset(skip).limit(limit)
             .order_by(LeaveRequest.start_date.desc())
         )
         return result.unique().scalars().all()
@@ -89,15 +94,14 @@ class LeaveRequestRepository:
     ) -> List[LeaveRequest]:
         query = (
             select(LeaveRequest)
-            .options(joinedload(LeaveRequest.staff))
-            .where(LeaveRequest.company_id == company_id)  # ✅ scope to company
+            .options( joinedload(LeaveRequest.staff),
+            joinedload(LeaveRequest.approver),)
+            
+            .where(LeaveRequest.company_id == company_id)  
         )
-
-        # ✅ apply filters before offset/limit — was applying them wrong
         if status:
             query = query.where(LeaveRequest.status == status)
         if leave_type:
-            # ✅ was checking `if LeaveType` (class always truthy) not `if leave_type`
             query = query.where(LeaveRequest.leave_type == leave_type)
 
         query = (
@@ -117,21 +121,18 @@ class LeaveRequestRepository:
     # GET PENDING — manager approval queue
     # =========================================================================
 
-    async def get_pending(
-        self,
-        company_id: int,
-        skip:       int = 0,
-        limit:      int = 50,
-    ) -> List[LeaveRequest]:
+    async def get_pending(self, company_id, skip=0, limit=50):
         result = await self.db.execute(
             select(LeaveRequest)
-            .options(joinedload(LeaveRequest.staff))
+            .options(
+                joinedload(LeaveRequest.staff),
+                joinedload(LeaveRequest.approver),  # ✅ add
+            )
             .where(
-                LeaveRequest.company_id == company_id,   # ✅ scope to company
+                LeaveRequest.company_id == company_id,
                 LeaveRequest.status     == LeaveStatus.pending,
             )
-            .offset(skip)
-            .limit(limit)
+            .offset(skip).limit(limit)
             .order_by(LeaveRequest.created_at.desc())
         )
         return result.unique().scalars().all()
@@ -186,46 +187,28 @@ class LeaveRequestRepository:
     # APPROVE
     # =========================================================================
 
-    async def approve(
-        self,
-        leave_id:    int,
-        company_id:  int,
-        approved_by: int,            # staff_id of approver
-    ) -> Optional[LeaveRequest]:
-        # ✅ was calling update() with wrong signature (passing kwargs not data object)
+    async def approve(self, leave_id, company_id, approved_by):
         leave = await self.get_by_id(leave_id, company_id)
         if not leave:
             return None
-
         leave.status      = LeaveStatus.approved
-        leave.approved_by = approved_by   # ✅ FK → staff.staff_id per schema
-
+        leave.approved_by = approved_by
         await self.db.commit()
-        await self.db.refresh(leave)
-        return leave
+        return await self.get_by_id(leave_id, company_id)
 
     # =========================================================================
     # REJECT
     # =========================================================================
 
-    async def reject(
-        self,
-        leave_id:   int,
-        company_id: int,
-        reason:     Optional[str] = None,
-    ) -> Optional[LeaveRequest]:
-        # ✅ was calling update() with wrong signature
+    async def reject(self, leave_id, company_id, reason=None):
         leave = await self.get_by_id(leave_id, company_id)
         if not leave:
             return None
-
         leave.status = LeaveStatus.rejected
         if reason:
             leave.reason = reason
-
         await self.db.commit()
-        await self.db.refresh(leave)
-        return leave
+        return await self.get_by_id(leave_id, company_id)
 
     # =========================================================================
     # CANCEL

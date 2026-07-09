@@ -6,6 +6,7 @@ from .inventory_router import (
     product_router,
     stock_movement_router,
     invoice_router,
+    dashboard_router
 )
 from .supplier_product_price_router import supplier_price_router
 
@@ -29,6 +30,7 @@ router_inventory.include_router(category_router)
 router_inventory.include_router(product_router)
 router_inventory.include_router(stock_movement_router)
 router_inventory.include_router(invoice_router)
+router_inventory.include_router(dashboard_router)
 router_inventory.include_router(system_setting_router)
 router_inventory.include_router(ws_router)
 router_inventory.include_router(chat_ws_router)

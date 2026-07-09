@@ -115,9 +115,6 @@ class AuthService:
         )
 
 
-
-
-
     # =========================================================================
     # LOGIN
     # =========================================================================
@@ -136,7 +133,13 @@ class AuthService:
         permissions = await self.auth_repo.load_permissions(
             user.user_id, role_name
         )
+
+
+        
         staff = await self.auth_repo.get_staff_by_user_id(user.user_id)
+
+
+
 
         await self.audit_repo.log(
             user_id    = user.user_id,
@@ -164,6 +167,9 @@ class AuthService:
             company_id = user.company_id,
             token   = refresh_token,
         )
+
+
+
         # =======================================================================
         # ✅ return raw dict — router handles cookie vs body
         # =======================================================================
@@ -187,6 +193,10 @@ class AuthService:
             },
         }
     
+
+
+
+
 
 
 

@@ -12,7 +12,7 @@ from app.schemas.schema import (
 )
 from app.services.inventory.inventory_service import (
     SupplierService, CustomerService, CategoryService,
-    ProductService, StockMovementService, InvoiceService,
+    ProductService, StockMovementService, InvoiceService, get_dashboard_service, DashboardService
 )
 from app.services.inventory.inventory_service import (
 get_Invoice_service, 
@@ -30,6 +30,7 @@ category_router       = APIRouter(prefix="/categories",      tags=["Categories"]
 product_router        = APIRouter(prefix="/products",        tags=["Products"])
 stock_movement_router = APIRouter(prefix="/stock-movements", tags=["Stock Movements"])
 invoice_router        = APIRouter(prefix="/invoices",        tags=["Invoices"])
+dashboard_router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 # ===========================================================================
 # SUPPLIERS
 # ===========================================================================
@@ -630,8 +631,6 @@ async def list_invoices(
 # ===========================================================================
 
 
-
-
 @invoice_router.get(
     "/{invoice_id}", 
     response_model=InvoiceResponse
@@ -735,3 +734,20 @@ async def delete_invoice(
     ):
     company_id = int(current_user["company_id"])
     return await service.delete(invoice_id,  company_id)
+
+# ===========================================================
+# 
+# ===========================================================
+
+
+@dashboard_router.get("/stats")
+async def get_dashboard_stats(
+    days: int = Query(11, ge=2, le=60),
+    current_user: dict = Depends(require_login),
+    service: DashboardService = Depends(get_dashboard_service),
+):
+    company_id = int(current_user["company_id"])
+    return await service.get_state(company_id, days)
+    
+
+

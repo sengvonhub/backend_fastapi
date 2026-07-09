@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from fastapi import HTTPException, UploadFile, status, Depends
 from sqlalchemy import select
@@ -10,6 +10,7 @@ from app.models.products.product import Product
 from app.repositories.inventory.product_variant_repo import ProductVariantRepository
 from app.services.communication.notifications_service import NotificationService
 from app.repositories.inventory.inventory_repository import (
+    DashboardRepository,
     SupplierRepository,
     CustomerRepository,
     CategoryRepository,
@@ -30,6 +31,7 @@ from app.schemas.schema import (
 from app.models.supplier.supplier import Supplier
 
 from app.services.storage import CloudinaryStorage
+from app.websockets import ws_manager
 storage = CloudinaryStorage()
 
 # ===========================================================================
@@ -407,6 +409,9 @@ async def get_category_service(
 
 
 class ProductService:
+
+
+
     def __init__(
         self, 
         db: AsyncSession,
@@ -418,20 +423,12 @@ class ProductService:
         self.product_repo=product_repo
 
 
-
-
-
     async def get_all(
             self, 
             company_id: int, 
             category_id: int | None = None
         ):
         return await self.product_repo.get_all(company_id, category_id)
-
-
-
-
-
 
 
 
@@ -850,6 +847,94 @@ async def get_Invoice_service(
 
 
 
+# ========================================================================
+#  HELPER  
+# ========================================================================
+
+
+
+def _fill_series(rows: list[dict], key: str, value_key: str, days: int) -> list[float]:
+    """Fill in zero-value days so the frontend always gets `days` points, even with no activity."""
+    today = datetime.utcnow().date()
+    by_day = {r[key]: r[value_key] for r in rows}
+    series = []
+    for i in range(days - 1, -1, -1):
+        d = today - timedelta(days=i)
+        series.append(by_day.get(d, 0.0))
+    return series
+
+
+
+
+def _pct_change(series: list[float]) -> float:
+    if len(series) < 2 or series[0] == 0:
+        return 0.0
+    return round(((series[-1] - series[0]) / abs(series[0])) * 100, 1)
+
+
+
+
+class DashboardService:
+    def __init__(self, db: AsyncSession, repo: DashboardRepository):
+        self.db=db
+        self.repo = repo
+
+
+    async def get_state(self, company_id: int, days: int = 11) -> dict:
+
+        revenue_rows = await self.repo.get_daily_revenue(company_id, days)
+        stock_rows =  await self.repo.get_daily_stock_net(company_id, days)
+        expense_rows = await self.repo.get_daily_expenses(company_id, days)
+        stock_totals = await self.repo.get_stock_in_out_totals(company_id)
+        current_stock = await self.repo.get_current_stock_total(company_id)
+        stock_value   = await self.repo.get_total_stock_value(company_id)
+
+
+
+        revenue_series = _fill_series(revenue_rows, "day", "total", days)
+        stock_series = _fill_series(stock_rows, "day", "net", days)
+        expense_series = _fill_series(expense_rows, "day", "total", days)
+
+
+        return {
+            "live_chat": {
+                "value": ws_manager.ws_manager.get_company_online_count(company_id),
+                "sub": "active now",
+                "spark": [0.0] * days,
+            },
+            "stock": {
+                "value": current_stock,
+                "stock_in": stock_totals["total_in"],
+                "stock_out": stock_totals["total_out"],
+                "badge_pct": _pct_change(stock_series),
+                "sub": "current units",
+                "spark": stock_series,
+            },
+            "stock_value": {
+                "value": stock_value,
+                "badge_pct": None,
+                "sub": "inventory worth",
+                "spark": [0.0] * days,
+            },
+            "expenses": {
+                "value": sum(expense_series),
+                "badge_pct": _pct_change(expense_series),
+                "sub": "vs last period",
+                "spark": expense_series,
+            },
+            "revenue": {
+                "value": sum(revenue_series),
+                "badge_pct": _pct_change(revenue_series),
+                "sub": "this period",
+                "spark": revenue_series,
+            },
+        }
+
+
+async def get_dashboard_service(
+            db: AsyncSession = Depends(get_db)
+    )      -> DashboardService:
+        return DashboardService(db=db, repo=DashboardRepository(db))
 
 
 

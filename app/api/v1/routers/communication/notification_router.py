@@ -21,6 +21,8 @@ async def get_my_notifications(
     )
 
 
+
+
 @notification_router.get("/my/summary", response_model=NotificationSummaryResponse, summary="Get my notification counts")
 async def get_my_summary(
     current_user: dict = Depends(require_login),
@@ -33,7 +35,9 @@ async def get_my_summary(
 
 
 
-# ✅ 4. dynamic {notification_id} routes LAST
+
+
+
 @notification_router.patch("/my/{notification_id}/read", response_model=NotificationResponse, summary="Mark one notification as read")
 async def mark_one_read(
     notification_id: int,
@@ -75,6 +79,9 @@ async def bulk_mark_read(
         user_id    = int(current_user["sub"]),
         company_id = current_user["company_id"],
     )
+
+
+
 
 
 

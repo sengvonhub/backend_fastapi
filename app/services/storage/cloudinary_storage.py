@@ -49,7 +49,15 @@ class CloudinaryStorage(BaseStorage):
         max_size: int,
         extra_options: dict | None = None,
     ) -> dict:
-        extra_options = extra_options or {}
+        
+        extra_options={
+        "format": "webp",
+        "transformation": [
+            {
+                "quality": "auto",
+            }
+        ]
+    }
         # 1. Validate MIME type
         if file.content_type not in allowed_types:
             raise HTTPException(
@@ -67,8 +75,6 @@ class CloudinaryStorage(BaseStorage):
                 status_code=413,
                 detail=f"File too large. Max allowed: {max_size // (1024 * 1024)} MB.",
             )
-        
-
         # 3. Push to Cloudinary (blocking SDK → thread pool) || asyncio.get_event_loop() => od basic (works only inside async def) || asyncio.run() => new modern
         # loop.run_in_executor() |=> Run this blocking code in a separate thread, so my async app doesn’t freeze | None = use default ThreadPoolExecutor
         try:
@@ -106,9 +112,20 @@ class CloudinaryStorage(BaseStorage):
             folder=folder,
             allowed_types=ALLOWED_IMAGE_TYPES,
             max_size=MAX_IMAGE_SIZE,
+
+
             extra_options={
-                "transformation": [{"quality": "auto", "fetch_format": "auto"}],
-            },
+                "transformation": [
+                    {
+                        "quality": "auto:good",
+                        "fetch_format": "auto",
+                        "width": 1200,
+                        "crop": "limit",
+                    }
+                ]
+            }
+
+
         )
     
 
@@ -160,7 +177,6 @@ class CloudinaryStorage(BaseStorage):
             return {"deleted": public_id, "status": "deleted"}
         if result.get("result") == "not found":
             return {"deleted": public_id, "status": "already_deleted"}
-        # ✅ don't raise on unexpected response — log and continue
         print(f"Unexpected Cloudinary response: {result}")
         return {"deleted": public_id, "status": "unknown", "message": str(result)}
 

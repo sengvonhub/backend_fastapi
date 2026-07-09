@@ -163,6 +163,8 @@ class UserRepository:
 
     
 
+
+
     async def get_all(
         self,
         company_id: int,
@@ -177,7 +179,7 @@ class UserRepository:
                 selectinload(User.staff).options(    
                 selectinload(Staff.staff_role),
                 selectinload(Staff.user),
-        ),    # ✅ nested load
+        ),    
             )
             .where(
                 User.company_id == company_id,
@@ -189,6 +191,9 @@ class UserRepository:
         )
         return result.scalars().all()
     
+
+
+
 
 
 
@@ -317,7 +322,7 @@ class DepartmentRepository:
             select(Department).where(
                 Department.department_name == department_name,
                 Department.company_id      == company_id,
-                # department_active(Department),  # ✅ uncomment after confirming Dept columns
+                # department_active(Department),  
             )
         )
         return result.scalar_one_or_none()
@@ -329,7 +334,7 @@ class DepartmentRepository:
             .options(selectinload(Department.manager))
             .where(
                 Department.company_id == company_id,
-                # department_active(Department),  # ✅ uncomment after confirming Dept columns
+                # department_active(Department),  
             )
             .order_by(Department.department_name)
         )

@@ -1,17 +1,18 @@
 from fastapi import APIRouter, Depends, status, Request, HTTPException, Cookie, Response
 from typing import Optional
-from app.schemas.schema import (
-    LoginRequest,
-    RegisterRequest, RegisterResponse,
-    ResetPasswordRequest, ChangePasswordRequest,
-    RefreshRequest,
-    UpdateUserRequest
+from app.schemas.schema import (LoginRequest,RegisterRequest, 
+                                RegisterResponse,
+                                ResetPasswordRequest, 
+                                ChangePasswordRequest,
+                                RefreshRequest,
+                                UpdateUserRequest
 )
 from app.utils.auth import require_superuser, require_admin, require_login
 from app.services.auth.auth_service import AuthService, get_auth_service
 from app.utils.helper import is_mobile, set_refresh_cookie
 from app.core.rate_limit import ip_limiter
 router = APIRouter(prefix="/auth", tags=["Auth"])
+
 
 # =============================================================================
 # REGISTER
@@ -34,7 +35,7 @@ async def register(
         company_id      = current_user["company_id"],
         current_user_id = int(current_user["sub"]),
         client_ip       = request.client.host,
-    )
+)
 
 # =============================================================================
 # LOGIN ✅ web → cookie, mobile → body
@@ -86,10 +87,6 @@ async def refresh(
     body:         RefreshRequest = None,
     cookie_token: Optional[str] = Cookie(None, alias="refresh_token"),
 ):
-    print("DEBUG mobile:", is_mobile(request))
-    print("DEBUG cookie_token:", cookie_token)
-    print("DEBUG body:", body)
-    print("DEBUG headers:", dict(request.headers))
     mobile = is_mobile(request)
     refresh_token = (body.refresh_token if body else None) if mobile else cookie_token
 
@@ -112,7 +109,6 @@ async def refresh(
             "refresh_expires_in": tokens["refresh_expires_in"],
             "token_type":         "bearer",
         }
-    
 
     else:
         # Web → rotate cookie, access_token in body only
@@ -124,6 +120,10 @@ async def refresh(
             "token_type":        "bearer",
             
         }
+    
+
+
+    
     
 
 # =============================================================================

@@ -23,7 +23,10 @@ async def list_variants(
     return await service.get_all(product_id, int(current_user["company_id"]))
 
 
-@variant_router.get("/{variant_id}", response_model=ProductVariantResponse)
+@variant_router.get(
+    "/{variant_id}", 
+    response_model=ProductVariantResponse
+)
 async def get_variant(
     product_id:   int,
     variant_id:   int,
@@ -37,7 +40,11 @@ async def get_variant(
 
 
 
-@variant_router.post("/", response_model=ProductVariantResponse, status_code=status.HTTP_201_CREATED)
+@variant_router.post(
+        "/", 
+        response_model=ProductVariantResponse, 
+        status_code=status.HTTP_201_CREATED
+    )
 async def create_variant(
     product_id:   int,
     data:         ProductVariantCreate,
@@ -45,6 +52,8 @@ async def create_variant(
     service:      ProductVariantService = Depends(get_product_variant_service),
 ):
     return await service.create(product_id, data, int(current_user["company_id"]))
+
+
 
 
 
@@ -72,6 +81,8 @@ async def delete_variant(
     service:      ProductVariantService = Depends(get_product_variant_service),
 ):
     await service.delete(variant_id, product_id, int(current_user["company_id"]))
+
+
 
 
 # --- Variant Images ---

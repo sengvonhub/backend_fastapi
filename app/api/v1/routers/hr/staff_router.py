@@ -46,11 +46,16 @@ async def get_all_staff_roles(
 ):
     return await service.get_all(company_id=current_user["company_id"])
 
+
+
 @staff_role_router.get(
     "/{staff_role_id}",
     response_model=StaffRoleResponse,
     summary="[Manager] Get staff role by id",
 )
+
+
+
 async def get_staff_role(
     staff_role_id: int,
     current_user:  dict             = Depends(require_manager),
@@ -66,6 +71,7 @@ async def get_staff_role(
     response_model=StaffRoleResponse,
     summary="[Manager] Update staff role",
 )
+
 async def update_staff_role(
     staff_role_id: int,
     data:          StaffRoleUpdate,
@@ -77,6 +83,8 @@ async def update_staff_role(
         data,
         company_id=current_user["company_id"],
     )
+
+
 
 
 
@@ -111,9 +119,6 @@ async def create_staff(
     service:      StaffService = Depends(get_staff_service),
 ):
     return await service.create(data, company_id=current_user["company_id"])
-
-
-
 
 
 
@@ -276,7 +281,7 @@ async def update_staff(
     email: Optional[str] = Form(None),
     phone: Optional[str] = Form(None),
     avatar_file: Optional[UploadFile] = File(None),
-    current_user: dict = Depends(require_manager),
+    current_user: dict = Depends(require_login),
     service: StaffService = Depends(get_staff_service),
 ):
     data = StaffUpdate(
@@ -294,6 +299,8 @@ async def update_staff(
         company_id=current_user["company_id"],
         avatar_file=avatar_file,
     )
+
+
 
 @staff_router.patch("/{staff_id}/avatar", response_model=StaffResponse)
 async def update_avatar(

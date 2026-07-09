@@ -56,7 +56,7 @@ def require_superuser(current_user: dict = Depends(get_current_user)) -> Dict:
 def require_admin(current_user: Dict = Depends(get_current_user), ) -> Dict:
     """"""
     role = current_user.get("role")
-    if role not in ["admin", "superuser"]:
+    if role not in ["admin", "superuser","staff"]:
         logger.warning(
             f'Admin access deinied for user {current_user.get("sub")}'
         )
@@ -65,15 +65,9 @@ def require_admin(current_user: Dict = Depends(get_current_user), ) -> Dict:
 
 
 
-
-
 # -----------------------------------------------------------------------
 # 
 # -----------------------------------------------------------------------
-
-
-
-
 
 def require_manager(current_user: dict = Depends(require_login), ) -> dict:
     """"""
@@ -84,6 +78,8 @@ def require_manager(current_user: dict = Depends(require_login), ) -> dict:
         )
         raise ForbiddenException("Manager access required.")
     return current_user
+
+
 
 
 

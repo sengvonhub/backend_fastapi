@@ -13,13 +13,12 @@ from app.schemas.company import (
 )
 from app.services.company.company_service import CompanyService
 from app.dependencies import get_db
-from app.utils.auth import require_superuser, require_admin
+from app.utils.auth import require_login, require_superuser, require_admin
 
 company_router = APIRouter(
     prefix="/companies",
     tags=["Companies"],
 )
-
 def get_company_service(
     db: AsyncSession = Depends(get_db),
 ) -> CompanyService:
@@ -30,13 +29,14 @@ def get_company_service(
 # SPECIFIC ROUTES FIRST (before any /{company_id} dynamic routes)
 # ===========================================================================
 
+
 @company_router.get(
     "/",
     response_model=list[CompanyResponse],
     summary="[Admin] List all companies",
 )
 async def list_companies(
-    current_user: dict = Depends(require_admin),
+    current_user: dict = Depends(require_login),
     service:      CompanyService = Depends(get_company_service),
 ):
     return await service.get_all()
@@ -140,18 +140,19 @@ async def update_status(
 # /{company_id} DYNAMIC ROUTES LAST
 # ===========================================================================
 
+
+
 @company_router.get(
     "/{company_id}",
     response_model=CompanyResponse,
-    summary="[Admin] Get company by id",
+    summary="Get company by id",
 )
 async def get_company(
     company_id:   int,
-    current_user: dict = Depends(require_admin),
+    current_user: dict = Depends(require_login),  
     service:      CompanyService = Depends(get_company_service),
 ):
     return await service.get_by_id(company_id)
-
 
 
 @company_router.patch(

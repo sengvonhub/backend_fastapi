@@ -8,7 +8,7 @@ import pytz
 
 
 from app.core.time_check import _is_early, _is_late
-from app.core.timezone import cambodia_now
+from app.core.timezone import cambodia_now, format_time_for_message
 from app.repositories.hr.attendance_repository import AttendanceRepository
 from app.repositories.hr.attendance_settings_repository import AttendanceSettingsRepository
 from app.repositories.hr.staff_repository import StaffRepository
@@ -57,6 +57,9 @@ class AttendanceService:
     # CHECK-IN — notify staff + notify managers if late
     # -----------------------------------------------------------------------
   
+
+
+
     async def check_in(
         self,
         scan_token: str,
@@ -66,6 +69,8 @@ class AttendanceService:
         company_id: int,
     ) -> dict:
         staff_id = decode_scan_token(scan_token)
+        if not office_qr_token:
+           raise HTTPException(status_code=422, detail="office_qr_token is required")
         decode_office_qr_token(office_qr_token)
         att_settings  = await self.settings_repo.get_by_company_id(company_id)
         distance = validate_gps_at_office(
@@ -75,7 +80,6 @@ class AttendanceService:
             float(att_settings .office_longitude),
             att_settings .allowed_radius_meters,
         )
-
         now =  cambodia_now()
         today    = now.date()  
         existing = await self.repo.get_today_record(staff_id, company_id, today)
@@ -91,23 +95,24 @@ class AttendanceService:
             latitude   = str(latitude),
             longitude  = str(longitude),
         )
-
         staff      = await self.staff_repo.get_by_id(staff_id, company_id)
         staff_name = staff.name if staff else "Staff"
-
+        formatted_time = format_time_for_message(record.check_in_time)
         if staff:
             await self.notif.send(
                 company_id     = company_id,
                 user_id        = staff.user_id,
                 title          = "Check-in recorded",
-                message        = f"You checked in at {record.check_in_time}. Have a great day!",
+                message        = f"You checked in at {formatted_time}. Have a great day!",
                 notif_type     = "success",
                 reference_id   = record.attendance_id,
                 reference_type = "attendance",
             )
-
-        
-        if _is_late(record.check_in_time, att_settings.office_open_time, att_settings.late_threshold_minutes) and staff:
+        if _is_late(
+            record.check_in_time, 
+            att_settings.office_open_time, 
+            att_settings.late_threshold_minutes
+            ) and staff:
             await self.notif.send(
                 company_id=company_id, user_id=staff.user_id,
                 title="Late check-in",
@@ -117,6 +122,7 @@ class AttendanceService:
 
 
             managers = await self.staff_repo.get_managers(company_id)
+            
             for manager in managers:
                 await self.notif.send(
                     company_id=company_id, user_id=manager.user_id,
@@ -125,13 +131,15 @@ class AttendanceService:
                     notif_type="warning", reference_id=record.attendance_id, reference_type="attendance",
                 )
 
-
         return {
             "attendance":      record,
             "staff_name":      staff_name,
             "distance_meters": round(distance, 1),
             "message":         f"Check-in successful! Welcome {staff_name}. ({distance:.0f}m from office)",
         }
+    
+
+
 
     # -----------------------------------------------------------------------
     # CHECK-OUT — notify staff
@@ -163,12 +171,13 @@ class AttendanceService:
                                                       longitude=str(longitude), company_id=company_id)
         staff      = await self.staff_repo.get_by_id(staff_id, company_id)
         staff_name = staff.name if staff else "Staff"
+        formatted_time = format_time_for_message(record.check_in_time)
 
         if staff:
             await self.notif.send(
                 company_id=company_id, user_id=staff.user_id,
                 title="Check-out recorded",
-                message=f"You checked out at {record.check_out_time}. See you tomorrow!",
+                message=f"You checked out at {formatted_time}. See you tomorrow!",
                 notif_type="success", reference_id=record.attendance_id, reference_type="attendance",
             )
 

@@ -238,8 +238,11 @@ async def get_user(
 
     user          = await service.get_user_by_id(user_id, company_id=current_user["company_id"])
     user_response = UserResponse.model_validate(user)
-    await cache.set(cache_key, user_response.model_dump(mode="json"), ttl=300)  # ✅ fix: mode="json" for datetime
+    await cache.set(cache_key, user_response.model_dump(mode="json"), ttl=300)  
     return user_response
+
+
+
 
 
 @router.patch(

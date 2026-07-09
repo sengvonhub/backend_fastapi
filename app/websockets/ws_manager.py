@@ -12,22 +12,63 @@ class WebSocketManager:
     Manages active WebSocket connections per user.
     One user can have multiple connections (phone + browser).
     """
+
+
     def __init__(self):
         # { user_id: set of WebSocket connections }
         self.connections: Dict[int, Set[WebSocket]] = {}
+        self.user_company: Dict[int, int] ={}
 
-    async def connect(self, websocket: WebSocket, user_id: int) -> None:
 
+
+    async def connect(self, websocket: WebSocket, user_id: int, company_id: int | None = None) -> None:
         await websocket.accept()
         if user_id not in self.connections:
             self.connections[user_id] = set()
         self.connections[user_id].add(websocket)
+
+        if company_id is not None:
+            self.user_company[user_id] = company_id
+
+        
+
+
 
     def disconnect(self, websocket: WebSocket, user_id: int) -> None:
         if user_id in self.connections:
             self.connections[user_id].discard(websocket)
             if not self.connections[user_id]:
                 del self.connections[user_id]
+                self.user_company.pop(user_id, None)
+
+    # =====================================================================
+    # 
+    # =====================================================================
+
+    def get_company_online_count(self, company_id: int) -> int:
+        return sum(
+            1 for uid, cid in self.user_company.items()
+            if cid == company_id and uid in self.connections
+        )
+    async def broadcast_to_company(self, company_id: int, data: dict) -> None:
+        user_ids = [uid for uid, cid in self.user_company.items() if cid == company_id]
+        for uid in user_ids:
+            await self.send_to_user(uid, data)
+
+    async def broadcast_presence(self, company_id: int) -> None:
+        await self.broadcast_to_company(company_id, {
+            "type": "presence_count",
+            "count": self.get_company_online_count(company_id),
+        })
+
+
+
+
+
+
+
+
+
 
     async def send_to_user(self, user_id: int, data: dict) -> None:
         """Push notification to all connections of a user."""
@@ -49,6 +90,9 @@ class WebSocketManager:
     def online_users(self) -> list[int]:
         return list(self.connections.keys())
 # Global instance — shared across all requests
+
+
+
 ws_manager = WebSocketManager()
 # ===========================================================================
 # Redis Pub/Sub listener

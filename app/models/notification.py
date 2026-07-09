@@ -32,10 +32,9 @@ class Notification(Base):
     reference_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     reference_type: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     # created_at: Mapped[datetime] = mapped_column(default=func.now(), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
-
-
-
+    # created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    
     # Relationships
     company: Mapped["Company"] = relationship("Company", back_populates="notifications")
     

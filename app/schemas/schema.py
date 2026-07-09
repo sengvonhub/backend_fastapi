@@ -275,8 +275,6 @@ class UserUpdate(BaseModel):
     full_name:     Optional[str]        = Field(None, min_length=2, max_length=150)
     department_id: Optional[int]        = None
     role_id:       Optional[int]        = None
-    # avatar_url: Optional[str] = None
-    # avatar_public_id: Optional[str] = None
     status:        Optional[UserStatus] = None
 
     model_config = {
@@ -598,6 +596,8 @@ class LeaveRequestBase(BaseModel):
         return self
 
 
+
+
 class LeaveRequestCreate(BaseModel):
     """Staff submits leave — no status/approved_by needed"""
     leave_type: LeaveTypeEnum
@@ -605,6 +605,8 @@ class LeaveRequestCreate(BaseModel):
     end_date:   date
     reason:     Optional[str] = Field(None, max_length=500)
     
+
+
 
     @model_validator(mode='after')
     def validate_dates(self):
@@ -633,9 +635,14 @@ class LeaveRequestResponse(LeaveRequestBase):
     company_id: int                        
     created_at: datetime
     staff:      Optional[StaffBasicInfo] = None  
+    approved_by_name: Optional[str] = None
+
+
+
 
     class Config:
         from_attributes = True
+
 
 
 class LeaveApprovalRequest(BaseModel):
@@ -719,6 +726,8 @@ class ProductVariantBase(BaseModel):
 
 class ProductVariantCreate(ProductVariantBase):
     pass
+
+
 
 
 class ProductVariantUpdate(BaseModel):
@@ -1060,6 +1069,13 @@ class NotificationBase(BaseModel):
     reference_id:   Optional[int]              = None
     reference_type: Optional[str]              = Field(None, max_length=50)
 
+    @field_validator('user_id', 'reference_id')
+    @classmethod
+    def must_be_positive(cls, v):
+        if v is not None and v <= 0:
+            raise ValueError('must be a positive integer')
+        return v
+
 
 
 
@@ -1083,6 +1099,7 @@ class NotificationUpdate(BaseModel):
 class NotificationResponse(NotificationBase):
     notification_id: int
     created_at:      datetime
+    reference_status: Optional[str] = None
 
 
     class Config:

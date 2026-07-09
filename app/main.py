@@ -20,9 +20,10 @@ from app.websockets import (
     start_chat_pubsub_listener,
     start_notification_pubsub_listener,
 )
+
+
 # from slowapi.errors import RateLimitExceeded
 # from slowapi.middleware import SlowAPIMiddleware
-
 
 
 from app.middleware import (
@@ -36,13 +37,13 @@ from fastapi.middleware.cors import CORSMiddleware
 # =============================================================================
 # LIFESPAN
 # =============================================================================
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Server starting...")
     if settings.ENVIRONMENT == "development":
         async with AsyncSessionLocal() as db:
             await seed_data(db)
-
     await connect_redis()
     redis_ok = await check_redis()
     if redis_ok:
@@ -52,6 +53,8 @@ async def lifespan(app: FastAPI):
 
     init_cloudinary()
     logger.info("Cloudinary initialized")
+
+
 
     pubsub_task = asyncio.create_task(start_chat_pubsub_listener(chat_handler))
     chat_task = asyncio.create_task(start_notification_pubsub_listener(notification_handler))
@@ -79,12 +82,12 @@ app = FastAPI(
     swagger_ui_parameters={"persistAuthorization": True},
 )
 
-
 app.state.limiter = ip_limiter
 
 # =============================================================================
 # OPENAPI
 # =============================================================================
+
 def custom_openapi():
     if app.openapi_schema:
         return app.openapi_schema

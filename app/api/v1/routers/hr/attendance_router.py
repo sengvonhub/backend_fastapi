@@ -93,6 +93,10 @@ async def scan_check_in(
 
 
 
+
+
+
+
 @attendance_router.post(
     "/scan/check-out",
     response_model=ScanResponse,

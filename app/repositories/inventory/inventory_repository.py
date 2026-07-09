@@ -1,5 +1,7 @@
+from datetime import datetime, timedelta
+
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update
+from sqlalchemy import Date, cast, func, select, update
 from app.exceptions.exceptions import NotFoundException
 from sqlalchemy.orm import selectinload
 from app.models.products.product_variant import ProductVariant
@@ -242,6 +244,9 @@ class ProductRepository:
 
 
 
+
+
+
     async def update(self, obj: Product, data: dict) -> Product:
         for k, v in data.items():
             setattr(obj, k, v)
@@ -251,9 +256,15 @@ class ProductRepository:
 
 
 
+
+
+
     async def delete(self, obj: Product) -> None:
         await self.db.delete(obj)
         await self.db.commit()
+
+    
+
 
     
     
@@ -388,7 +399,9 @@ class InvoiceRepository:
         r = await self.db.execute(query)
         return r.scalars().all()
 
-
+        # =====================================================================
+        # 
+        # =====================================================================
 
 
 
@@ -405,6 +418,10 @@ class InvoiceRepository:
             )
         )
         return r.scalar_one_or_none()
+    
+        # =====================================================================
+        # 
+        # =====================================================================
     
 
 
@@ -430,12 +447,6 @@ class InvoiceRepository:
             .where(Invoice.invoice_id == obj.invoice_id)
         )
         return r.scalar_one()
-
-
-
-
-
-
     async def update(self, obj: Invoice, data: dict) -> Invoice:
         for k, v in data.items():
             setattr(obj, k, v)
@@ -449,12 +460,6 @@ class InvoiceRepository:
             .where(Invoice.invoice_id == obj.invoice_id)
         )
         return r.scalar_one()
-
-
-
-
-
-
     async def delete(self, obj: Invoice) -> None:
         await self.db.delete(obj)
         await self.db.commit()
@@ -467,8 +472,6 @@ class InvoiceRepository:
 class InvoiceAttachmentRepository:
     def __init__(self, db: AsyncSession):
         self.db = db
-
-
     async def get_all(self, invoice_id: int, company_id: int) -> list[InvoiceAttachment]:
         r = await self.db.execute(
             select(InvoiceAttachment)
@@ -530,3 +533,157 @@ class InvoiceAttachmentRepository:
     
 
     
+#===========================================================================
+# 
+# ==========================================================================
+
+class DashboardRepository:
+   
+   
+    def __init__(self, db: AsyncSession):
+        self.db = db
+
+
+
+    async def get_daily_revenue(self, company_id: int, days: int = 11) -> list[dict]:
+        since = datetime.utcnow() - timedelta(days=days - 1)
+        r = await self.db.execute(
+            select(
+                cast(Invoice.created_at, Date).label("day"),
+                func.coalesce(func.sum(Invoice.total_amount), 0).label("total"),
+            )
+            .where(
+                Invoice.company_id == company_id,
+                Invoice.created_at >= since,
+            )
+            .group_by("day")
+            .order_by("day")
+        )
+        return [{"day": row.day, "total": float(row.total)} for row in r.all()]
+    
+
+
+
+
+    async def get_daily_stock_net(self, company_id: int, days: int = 11) -> list[dict]:
+        since = datetime.utcnow() - timedelta(days=days - 1)
+        r = await self.db.execute(
+            select(
+                cast(StockMovement.date, Date).label("day"),
+                func.coalesce(
+                    func.sum(StockMovement.qty_in - StockMovement.qty_out), 0
+                ).label("net"),
+            )
+            .where(
+                StockMovement.company_id == company_id,
+                StockMovement.is_deleted == False,
+                StockMovement.date >= since,
+            )
+            .group_by("day")
+            .order_by("day")
+        )
+        return [{"day": row.day, "net": float(row.net)} for row in r.all()]
+
+
+
+
+
+
+    async def get_daily_stock_out(self, company_id: int, days: int = 11) -> list[dict]:
+        """Per-day units shipped out — useful for its own chart, not for a running total."""
+        since = datetime.utcnow() - timedelta(days=days - 1)
+        r = await self.db.execute(
+            select(
+                cast(StockMovement.date, Date).label("day"),
+                func.coalesce(func.sum(StockMovement.qty_out), 0).label("total"),
+            ).where(
+                StockMovement.company_id == company_id,
+                StockMovement.is_deleted == False,
+                StockMovement.date >= since,
+            )
+            .group_by("day")
+            .order_by("day")
+        )
+        return [{"day": row.day, "total": float(row.total)} for row in r.all()]
+    
+
+
+
+    async def get_stock_in_out_totals(self, company_id: int) -> dict:
+        r = await self.db.execute(
+            select(
+                func.coalesce(func.sum(StockMovement.qty_in), 0).label("total_in"),
+                func.coalesce(func.sum(StockMovement.qty_out), 0).label("total_out"),
+            ).where(
+                StockMovement.company_id == company_id,
+                StockMovement.is_deleted == False,
+            )
+        )
+        row = r.one()
+        return {"total_in": float(row.total_in), "total_out": float(row.total_out)}
+        
+
+
+
+
+
+    async def get_current_stock_total(self, company_id: int) -> float:
+        r = await self.db.execute(
+            select(
+                func.coalesce(func.sum(StockMovement.qty_in - StockMovement.qty_out), 0)
+            ).where(
+                StockMovement.company_id == company_id,
+                StockMovement.is_deleted == False,
+            )
+        )
+        return float(r.scalar() or 0)
+    
+
+
+    #===========================================================================
+    # 
+    # =========================================================================
+        
+
+
+    async def get_daily_expenses(self, company_id: int, days: int = 11) -> list[dict]:
+        """Placeholder: sums qty_out as a stand-in for expense trend until a real Expense model exists."""
+        since = datetime.utcnow() - timedelta(days=days - 1)
+        r = await self.db.execute(
+            select(
+                cast(StockMovement.date, Date).label("day"),
+                func.coalesce(func.sum(StockMovement.qty_out), 0).label("total"),
+            )
+            .where(
+                StockMovement.company_id == company_id,
+                StockMovement.is_deleted == False,
+                StockMovement.date >= since,
+            )
+            .group_by("day")
+            .order_by("day")
+        )
+        return [{"day": row.day, "total": float(row.total)} for row in r.all()]
+    
+
+    #===========================================================================
+    # 
+    # =========================================================================
+    
+
+    async def get_total_stock_value(self, company_id: int) -> float:
+        r = await self.db.execute(
+            select(
+                func.coalesce(
+                    func.sum(ProductVariant.price * ProductVariant.stock_quantity), 0
+                )
+            )
+            .select_from(ProductVariant)
+            .join(Product, ProductVariant.product_id == Product.product_id)
+            .where(Product.company_id == company_id)
+        )
+        return float(r.scalar() or 0)
+    
+
+    
+        
+        

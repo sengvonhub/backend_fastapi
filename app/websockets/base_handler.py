@@ -21,6 +21,12 @@ class BaseWebSocketHandler(ABC):
         await websocket.accept()
         self.connections.setdefault(group_id, {}).setdefault(member_id, set()).add(websocket)
 
+
+    # =======================================================
+    # 
+    # =======================================================
+
+    
     def disconnect(self, websocket: WebSocket, group_id: int, member_id: int) -> None:
         group = self.connections.get(group_id, {})
         sockets = group.get(member_id, set())

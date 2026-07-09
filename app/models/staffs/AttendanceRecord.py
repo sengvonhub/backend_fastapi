@@ -20,9 +20,9 @@ class AttendanceRecord(Base):
     date:           Mapped[date]          = mapped_column(Date,    nullable=False)
     check_in_time:  Mapped[Optional[time]]= mapped_column(Time,    nullable=True)
     check_out_time: Mapped[Optional[time]]= mapped_column(Time,    nullable=True)
-
-
     # created_at:     Mapped[datetime]      = mapped_column(DateTime, server_default=func.now(), nullable=False)
+
+
     created_at: Mapped[datetime] = mapped_column(
                                                 DateTime(timezone=True),
                                                 default=cambodia_now,
