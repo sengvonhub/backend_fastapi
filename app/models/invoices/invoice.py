@@ -9,6 +9,7 @@ if TYPE_CHECKING:
     from ..staffs import Staff
     from .invoice_item import InvoiceItem
     from .invoice_attachments import InvoiceAttachment
+    from ..quotations.quotation import Quotation
     from company import Company
 class Invoice(Base):
     __tablename__ = "invoices"
@@ -28,3 +29,6 @@ class Invoice(Base):
     staff:       Mapped[Optional["Staff"]]       = relationship("Staff",    back_populates="invoices")
     items:       Mapped[list["InvoiceItem"]]     = relationship("InvoiceItem",       back_populates="invoice", cascade="all, delete-orphan")
     attachments: Mapped[list["InvoiceAttachment"]] = relationship("InvoiceAttachment", back_populates="invoice", cascade="all, delete-orphan")
+
+
+    quotations:  Mapped[list["Quotation"]] = relationship("Quotation", back_populates="invoices", cascade="all, delete-orphan")

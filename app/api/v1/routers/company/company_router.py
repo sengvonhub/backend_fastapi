@@ -19,6 +19,9 @@ company_router = APIRouter(
     prefix="/companies",
     tags=["Companies"],
 )
+
+
+
 def get_company_service(
     db: AsyncSession = Depends(get_db),
 ) -> CompanyService:

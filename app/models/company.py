@@ -13,6 +13,9 @@ class CompanyStatus(str, enum.Enum):
     active    = "active"
     suspended = "suspended"
     cancelled = "cancelled"
+
+
+
 class Company(Base):
     __tablename__ = "companies"
  
@@ -40,6 +43,11 @@ class Company(Base):
     updated_at        = Column(DateTime(timezone=True), server_default=func.now(),onupdate=func.now(), nullable=False)
     # logo_url     = Column(DateTime(timezone=True), nullable=True)
     # Relationships
+
+
+
+
+
     users              = relationship("User",             back_populates="company", cascade="all, delete-orphan")
     roles              = relationship("Role",             back_populates="company", cascade="all, delete-orphan")
     departments        = relationship("Department",       back_populates="company", cascade="all, delete-orphan")
@@ -50,7 +58,6 @@ class Company(Base):
     attendance_settings = relationship("AttendanceSettings", back_populates="company", cascade="all, delete-orphan")
 
     audit_logs         = relationship("AuditLog",         back_populates="company", cascade="all, delete-orphan")
-    
     refreshtokens      = relationship("RefreshToken",     back_populates="company", cascade="all, delete-orphan")
 
     system_settings    = relationship("SystemSetting",    back_populates="company", cascade="all, delete-orphan")
@@ -65,14 +72,14 @@ class Company(Base):
     customers          = relationship("Customer",         back_populates="company", cascade="all, delete-orphan")
     invoices           = relationship("Invoice",          back_populates="company", cascade="all, delete-orphan")
     invoice_items      = relationship("InvoiceItem",      back_populates="company", cascade="all, delete-orphan")
+  
+    quotations         = relationship("Quotation",        back_populates="company", cascade="all, delete-orphan")
+    quotation_items    = relationship("QuotationItem",    back_populates="company", cascade="all, delete-orphan"  )
+
+
     chat_groups        = relationship("ChatGroup",        back_populates="company", cascade="all, delete-orphan")
     chat_messages      = relationship("ChatMessage",      back_populates="company", cascade="all, delete-orphan")
     chat_group_members = relationship("ChatGroupMember",  back_populates="company", cascade="all, delete-orphan")
 
-    status_history = relationship(
-        "CompanyStatusHistory",
-        back_populates="company",
-        cascade="all, delete-orphan",
-        order_by="desc(CompanyStatusHistory.changed_at)"
-    )
+    status_history = relationship("CompanyStatusHistory",back_populates="company", cascade="all, delete-orphan",order_by="desc(CompanyStatusHistory.changed_at)")
  

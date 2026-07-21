@@ -1,11 +1,12 @@
 import sys
 from loguru import logger
 from app.core.config import settings
-
 def setup_logger():
+
+
+    
     # remove default handler
     logger.remove() 
-    # Console (develpment)
     logger.add(
         sys.stdout,
         level="DEBUG" if settings.DEBUG else "INFO",
@@ -17,8 +18,6 @@ def setup_logger():
         ),
         colorize=True,
     ) 
-
-
 
 
     # ── File: all logs
@@ -58,7 +57,7 @@ def setup_logger():
         enqueue=True,
         filter=lambda r: "SECURITY" in r["message"],
     )
-
     return logger
+
 
 logger = setup_logger()

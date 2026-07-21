@@ -17,6 +17,8 @@ from .company import Company
 from .chat import ChatGroup, ChatGroupMember, ChatMessage
 from .refresh_token import  RefreshToken
 from .CompanyStatusHistory import CompanyStatusHistory
+from .quotations import Quotation
+from .quotations import QuotationItem
 
 __all__ = [
     "Role", "Department", "User", "Company", "RefreshToken", "CompanyStatusHistory",
@@ -25,5 +27,6 @@ __all__ = [
     "AuditLog", "SystemSetting",
     "Supplier", "Customer", "Category", "Product", "StockMovement" , "ProductImage",
     "Invoice", "InvoiceItem", "InvoiceAttachment",
-    "ChatGroup", "ChatGroupMember", "ChatMessage",
+    "ChatGroup", "ChatGroupMember", "ChatMessage", 
+    "Quotation","QuotationItem",
 ]

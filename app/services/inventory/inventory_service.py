@@ -1,7 +1,8 @@
 from datetime import datetime, timedelta
+import json
 
 from fastapi import HTTPException, UploadFile, status, Depends
-from sqlalchemy import select
+from enum import Enum
 from sqlalchemy.ext.asyncio import AsyncSession
 from decimal import Decimal
 from app.dependencies import get_db, get_redis_client
@@ -874,10 +875,78 @@ def _pct_change(series: list[float]) -> float:
 
 
 
+
+
+
+
+
+
+# /////////////////////////
+#  Report Service
+# ////////////////////////
+
+
+class  ReportPeriod(str, Enum):
+    day = "day"
+    week = "week"
+    month = "month"
+    year  = "year"
+
+  
+_PERIOD_CONFIG = {
+    ReportPeriod.day:   {"since": timedelta(hours=24), "bucket": "hour",  "points": 24},
+    ReportPeriod.week:  {"since": timedelta(days=7),   "bucket": "day",   "points": 7},
+    ReportPeriod.month: {"since": timedelta(days=30),  "bucket": "day",   "points": 30},
+    ReportPeriod.year:  {"since": timedelta(days=365), "bucket": "month", "points": 12},
+}
+
+def _truncate(dt: datetime, bucket: str) -> datetime:
+    """"""
+    if bucket == "hour":
+        return dt.replace(minute=0, second=0, microsecond=0)
+    if bucket == "day":
+        return dt.replace(hour=0, minute=0, second=0, microsecond=0)
+    if bucket == "month":
+        return dt.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    raise ValueError(f"Unsupported bucket: {bucket}")
+
+
+def _generate_labels(period: ReportPeriod) -> list[datetime]:
+    """Full list of expected bucket start-times for a period, oldest -> newest."""
+    cfg = _PERIOD_CONFIG[period]
+    bucket, points = cfg["bucket"], cfg["points"]
+    now = _truncate(datetime.utcnow(), bucket)
+    if bucket == "month":
+        labels, year, month = [], now.year, now.month
+        for _ in range(points):
+            labels.append(datetime(year, month, 1))
+            month -= 1
+            if month == 0:
+                month, year = 12, year - 1
+        labels.reverse()
+        return labels
+
+    step = timedelta(hours=1) if bucket == "hour" else timedelta(days=1)
+    return [now - step * i for i in range(points - 1, -1, -1)]
+
+def _fill_by_bucket(rows: list[dict], value_key: str, labels: list[datetime]) -> list[float]:
+    by_bucket = {}
+    for r in rows:
+        b = r["bucket"]
+        if b.tzinfo is not None:
+            b = b.replace(tzinfo=None)
+        by_bucket[b] = r[value_key]
+    return [by_bucket.get(label, 0.0) for label in labels]
+
+    
+
+
 class DashboardService:
-    def __init__(self, db: AsyncSession, repo: DashboardRepository):
+    def __init__(self, db: AsyncSession, repo: DashboardRepository, redis_client: redis.Redis | None = None):
         self.db=db
         self.repo = repo
+        self.redis_client = redis_client
+        
 
 
     async def get_state(self, company_id: int, days: int = 11) -> dict:
@@ -930,22 +999,69 @@ class DashboardService:
             },
         }
 
+    
+    async def get_report(self, company_id: int, period: ReportPeriod) -> dict:
+        cache_key = f"dashboard:report:{company_id}:{period.value}"
+
+        if self.redis_client:
+            cached = await self.redis_client.get(cache_key)
+            if cached:
+                return json.loads(cached)
+
+        cfg = _PERIOD_CONFIG[period]
+        since  = datetime.utcnow() - cfg["since"]
+        bucket = cfg["bucket"]
+        labels = _generate_labels(period)
+
+        revenue_rows  = await self.repo.get_revenue_by_bucket(company_id, since, bucket)
+        stock_rows    = await self.repo.get_stock_net_by_bucket(company_id, since, bucket)
+        stock_in_rows = await self.repo.get_stock_in_by_bucket(company_id, since, bucket)
+        stock_out_rows= await self.repo.get_stock_out_by_bucket(company_id, since, bucket)
+        expense_rows  = await self.repo.get_expenses_by_bucket(company_id, since, bucket)
+
+        revenue_series   = _fill_by_bucket(revenue_rows, "total", labels)
+        stock_series     = _fill_by_bucket(stock_rows, "net", labels)
+        stock_in_series  = _fill_by_bucket(stock_in_rows, "total", labels)
+        stock_out_series = _fill_by_bucket(stock_out_rows, "total", labels)
+        expense_series   = _fill_by_bucket(expense_rows, "total", labels)
+
+        result = {
+            "period": period.value,
+            "labels": [l.isoformat() for l in labels],
+            "revenue": {
+                "value": sum(revenue_series),
+                "badge_pct": _pct_change(revenue_series),
+                "spark": revenue_series,
+            },
+            "stock": {
+                "value": sum(stock_series),
+                "stock_in": sum(stock_in_series),
+                "stock_out": sum(stock_out_series),
+                "badge_pct": _pct_change(stock_series),
+                "spark": stock_series,
+                "spark_in": stock_in_series,
+                "spark_out": stock_out_series,
+            },
+            "expenses": {
+                "value": sum(expense_series),
+                "badge_pct": _pct_change(expense_series),
+                "spark": expense_series,
+            },
+        }
+
+        if self.redis_client:
+            ttl = 60 if period == ReportPeriod.day else 300
+            await self.redis_client.set(cache_key, json.dumps(result), ex=ttl)
+
+        return result
+
+
 
 async def get_dashboard_service(
-            db: AsyncSession = Depends(get_db)
+            db: AsyncSession = Depends(get_db),
+            get_redis_client: redis.Redis = Depends(get_redis_client)
     )      -> DashboardService:
-        return DashboardService(db=db, repo=DashboardRepository(db))
-
-
-
-
-
-
-
-
-
-
-
+        return DashboardService(db=db, repo=DashboardRepository(db), redis_client=get_redis_client)
 
 
 

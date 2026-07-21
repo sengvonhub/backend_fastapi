@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     from ..company import Company
     from ..chat.chat_message import ChatMessage
     from ..chat.chat_group_member import ChatGroupMember
+    from ..quotations.quotation import Quotation
 
 class GenderEnum(str, enum.Enum):
     male = "male"
@@ -59,8 +60,25 @@ class Staff(Base):
 
     attendance_records: Mapped[list["AttendanceRecord"]]= relationship("AttendanceRecord", back_populates="staff", cascade="all, delete-orphan", passive_deletes=True)
     invoices:           Mapped[list["Invoice"]]         = relationship("Invoice",          back_populates="staff")
+
+
+
+    quotations: Mapped[list["Quotation"]] = relationship("Quotation", back_populates="staff", foreign_keys="Quotation.staff_id")
+    created_quotations: Mapped[list["Quotation"]] = relationship("Quotation", back_populates="creator", foreign_keys="Quotation.created_by")
+
+
+
+
   
   
+
+
+
+
+
+
+
+
   
   
     # ✅ FIX 3: added chat relationships

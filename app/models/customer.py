@@ -9,6 +9,7 @@ from app.db.base import Base
 if  TYPE_CHECKING:
     from .invoices import Invoice
     from .company import Company
+    from .quotations.quotation import Quotation
 
 class Customer(Base):
     __tablename__ = "customers"
@@ -33,3 +34,8 @@ class Customer(Base):
     # Relationships
     company: Mapped["Company"] = relationship("Company", back_populates="customers")
     invoices: Mapped[list["Invoice"]] = relationship("Invoice", back_populates="customer")
+
+    quotations: Mapped[list["Quotation"]] = relationship("Quotation", back_populates="customer")
+
+
+

@@ -29,6 +29,7 @@ from app.models.company import Company
 from app.models.refresh_token import RefreshToken
 from app.models.CompanyStatusHistory import CompanyStatusHistory
 
+from app.models.quotations import Quotation, QuotationItem
 
 
 

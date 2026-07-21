@@ -98,12 +98,14 @@ def custom_openapi():
     schema["security"] = [{"BearerAuth": []}]
     app.openapi_schema = schema
     return schema
-
 app.openapi = custom_openapi
 
 # =============================================================================
 # EXCEPTION HANDLERS
 # =============================================================================
+
+
+
 # @app.exception_handler(RateLimitExceeded)
 # async def rate_limit_handler(request, exc):
 #     logger.warning(f"SECURITY | Rate limit hit | ip:{request.client.host} | path:{request.url.path}")

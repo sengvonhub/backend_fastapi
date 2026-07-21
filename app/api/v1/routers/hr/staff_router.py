@@ -251,10 +251,6 @@ async def get_my_profile(
 # ///////////////////////////////////////////////////////////////////
 
 
-
-
-
-
 @staff_router.get(
     "/{staff_id}",
     response_model=StaffResponse,
@@ -269,12 +265,11 @@ async def get_staff(
 
 
 
-
-
 @staff_router.patch("/{staff_id}", response_model=StaffResponse)
 async def update_staff(
     staff_id: int,
     name: Optional[str] = Form(None),
+    staff_role_id: Optional[int] = Form(None),
     gender: Optional[str] = Form(None),
     date_of_birth: Optional[date] = Form(None),
     address: Optional[str] = Form(None),
@@ -286,6 +281,7 @@ async def update_staff(
 ):
     data = StaffUpdate(
         name=name, 
+        staff_role_id=staff_role_id,
         gender=gender,
         date_of_birth=date_of_birth,
         address=address, 
@@ -299,7 +295,6 @@ async def update_staff(
         company_id=current_user["company_id"],
         avatar_file=avatar_file,
     )
-
 
 
 @staff_router.patch("/{staff_id}/avatar", response_model=StaffResponse)

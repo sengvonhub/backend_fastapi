@@ -11,8 +11,15 @@ from app.schemas.schema import (
     InvoiceCreate, InvoiceUpdate, InvoiceResponse,
 )
 from app.services.inventory.inventory_service import (
-    SupplierService, CustomerService, CategoryService,
-    ProductService, StockMovementService, InvoiceService, get_dashboard_service, DashboardService
+    SupplierService, 
+    CustomerService, 
+    CategoryService,
+    ProductService, 
+    StockMovementService,
+    InvoiceService, 
+    get_dashboard_service, 
+    DashboardService,
+    ReportPeriod
 )
 from app.services.inventory.inventory_service import (
 get_Invoice_service, 
@@ -741,6 +748,8 @@ async def delete_invoice(
 
 
 @dashboard_router.get("/stats")
+
+
 async def get_dashboard_stats(
     days: int = Query(11, ge=2, le=60),
     current_user: dict = Depends(require_login),
@@ -748,6 +757,18 @@ async def get_dashboard_stats(
 ):
     company_id = int(current_user["company_id"])
     return await service.get_state(company_id, days)
+
+
+
+
+@dashboard_router.get("/report")
+async def get_dashboard_report(
+    period: ReportPeriod = Query(ReportPeriod.week),
+    current_user: dict = Depends(require_login),
+    service: DashboardService = Depends(get_dashboard_service),
+):
+    company_id = int(current_user["company_id"])
+    return await service.get_report(company_id, period)
     
 
 

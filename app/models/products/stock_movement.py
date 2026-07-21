@@ -10,11 +10,14 @@ from app.db.base import Base
 if TYPE_CHECKING:
     from .product_variant import ProductVariant
     from ..company import Company
+    
 class StockMovement(Base):
     __tablename__ = "stock_movements"
 
     movement_id:      Mapped[int]            = mapped_column(Integer, primary_key=True, autoincrement=True)
+
     variant_id:       Mapped[int]            = mapped_column(Integer, ForeignKey("product_variants.variant_id", ondelete="CASCADE"), nullable=False, index=True)
+
     company_id:       Mapped[int]            = mapped_column(Integer, ForeignKey("companies.company_id"), nullable=False, index=True)
     qty_in:           Mapped[int]            = mapped_column(Integer, default=0)
     qty_out:          Mapped[int]            = mapped_column(Integer, default=0)

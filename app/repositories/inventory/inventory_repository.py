@@ -83,6 +83,9 @@ class CustomerRepository:
     def __init__(self, db: AsyncSession):
         self.db = db
 
+
+
+
     async def get_all(self, company_id: int) -> list[Customer]:
         r = await self.db.execute(
             select(Customer)
@@ -90,6 +93,9 @@ class CustomerRepository:
             .order_by(Customer.name)
         )
         return r.scalars().all()
+
+
+
 
     async def get_by_id(self, customer_id: int, company_id: int) -> Customer | None:
         r = await self.db.execute(
@@ -130,6 +136,9 @@ class CustomerRepository:
     async def delete(self, obj: Customer) -> None:
         await self.db.delete(obj)
         await self.db.commit()
+
+
+
 
 
 # ===========================================================================
@@ -685,5 +694,110 @@ class DashboardRepository:
     
 
     
+    # =====================================================================
+    # 
+    # =====================================================================
+    async def get_revenue_by_bucket(self, company_id: int, since: datetime, bucket: str) -> list[dict]:
+        trunc = func.date_trunc(bucket, Invoice.created_at).label("bucket")
+
+        r = await self.db.execute(
+            select(trunc, func.coalesce(func.sum(Invoice.total_amount),0).label("total"))
+            .where(Invoice.company_id == company_id, Invoice.created_at >= since)
+            .group_by("bucket")
+            .order_by("bucket")
+        )
+        return [{"bucket": row.bucket, "total": float(row.total)} for row in r.all()]
+    
+    # =====
+    # 
+    # =====
+    async def get_stock_net_by_bucket(self, company_id: int, since: datetime, bucket: str)  -> list[dict]:
+        trunc = func.date_trunc(bucket, StockMovement.date).label("bucket")
+        r = await self.db.execute(
+            select(trunc, func.coalesce(func.sum(StockMovement.qty_in - StockMovement.qty_out), 0).label("net"))
+            .where(
+                StockMovement.company_id == company_id,
+                StockMovement.is_deleted == False,
+                StockMovement.date >= since,
+            )
+            .group_by("bucket")
+            .order_by("bucket")
+        )
+        return [{"bucket": row.bucket, "net": float(row.net)} for row in r.all()]
+    
+
+    #  ==
+    # 
+    #  ==
+   
+    async def get_expenses_by_bucket(self, company_id: int, since: datetime, bucket: str) -> list[dict]:
+        trunc = func.date_trunc(bucket, StockMovement.date).label("bucket")
+        r = await self.db.execute(
+           select(
+               trunc, func.coalesce(
+                   func.sum(
+                       StockMovement.qty_out
+                   ), 0
+               ).label("total")
+           ).where(
+            StockMovement.company_id == company_id,
+            StockMovement.is_deleted == False,
+            StockMovement.date >= since,
+           )
+           .group_by("bucket")
+           .order_by("bucket")
+        )
+        return [{"bucket": row.bucket, "total": float(row.total)} for row in r.all()]
+    
+
+    async def get_stock_in_by_bucket(self, company_id: int, since: datetime, bucket: str) -> list[dict]:
+        trunc = func.date_trunc(bucket, StockMovement.date).label("bucket")
+        r = await self.db.execute(
+            select(trunc, func.coalesce(func.sum(StockMovement.qty_in), 0).label("total"))
+            .where(
+                StockMovement.company_id == company_id,
+                StockMovement.is_deleted == False,
+                StockMovement.date >= since,
+            )
+            .group_by("bucket")
+            .order_by("bucket")
+        )
+        return [{"bucket": row.bucket, "total": float(row.total)} for row in r.all()]
+
+
+
+    async def get_stock_out_by_bucket(self, company_id: int, since: datetime, bucket: str) -> list[dict]:
+        trunc = func.date_trunc(bucket, StockMovement.date).label("bucket")
+        r = await self.db.execute(
+            select(trunc, func.coalesce(func.sum(StockMovement.qty_out), 0).label("total"))
+            .where(
+                StockMovement.company_id == company_id,
+                StockMovement.is_deleted == False,
+                StockMovement.date >= since,
+            )
+            .group_by("bucket")
+            .order_by("bucket")
+        )
+        return [{"bucket": row.bucket, "total": float(row.total)} for row in r.all()]
+
+
+
+
+
+
+
+
+    #  ==
+    # 
+    #  ==
+
+    
+
+
+
+
+
+
+
         
         
