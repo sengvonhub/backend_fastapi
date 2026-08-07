@@ -4,6 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload, joinedload
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.permission.role_permission import RolePermission
 from app.models.users.user import User
 from app.models.staffs.staff import Staff
 from app.models.roles.role import Role
@@ -40,10 +41,9 @@ class AuthRepository:
             )
             .where(
                 User.user_id    == user_id,
-                User.company_id == company_id,   # ✅ scope to company
+                User.company_id == company_id,   
             )
         )
-        # ✅ return None instead of raising — let service handle 404
         return result.scalar_one_or_none()
         
 
@@ -60,7 +60,6 @@ class AuthRepository:
                 selectinload(User.department),
             )
             .where(User.username == username)
-            # ✅ intentionally no company_id — username is globally unique
         )
         return result.scalar_one_or_none()
 
@@ -109,37 +108,21 @@ class AuthRepository:
     # LOAD permissions — based on role name
     # -----------------------------------------------------------------------
 
-    async def load_permissions(
-        self, user_id: int, role_name: str
-    ) -> list[str]:
+    async def load_permissions(self, user_id: int, role_name: str) -> list[str]:
         if role_name == "superuser":
             return ["*"]
+        result = await self.db.execute(
+            select(Role)
+            .options(selectinload(Role.permissions))
+            .join(User, User.role_id == Role.role_id)
+            .where(User.user_id == user_id)
+        )
+        role = result.scalar_one_or_none()
+        return [p.code for p in role.permissions] if role else []
 
-        if role_name == "admin":
-            return [
-                "read_all",
-                "write_all",
-                "delete_users",
-                "manage_roles",
-                "view_audit_logs",
-            ]
 
-        if role_name == "manager":
-            return [
-                "read_staff",
-                "write_staff",
-                "approve_leave",
-                "view_attendance",
-                "manage_salary",
-            ]
 
-        # staff / default
-        return [
-            "read_own_profile",
-            "request_leave",
-            "view_own_attendance",
-            "view_own_salary",
-        ]
+
 
     # -----------------------------------------------------------------------
     # CREATE refresh token

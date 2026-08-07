@@ -71,7 +71,7 @@ class AuthService:
             department_id = body.department_id,
             status        = UserStatus.active,
         )
-
+        
         await self.audit_repo.log(
             user_id    = current_user_id,
             company_id = company_id,
@@ -125,22 +125,32 @@ class AuthService:
         client_ip: str,
     ) -> dict:
         user = await self.auth_repo.get_by_username(body.username)
+
         if not user or not verify_password(body.password, user.password_hash):
             raise UnauthorizedException("Invalid username or password.")
+        
         if user.status != UserStatus.active:
             raise ForbiddenException("Your account is disabled. Contact admin.")
+
+
+        # //////////////////
+        #   Role checking
+        # /////////////////
+
         role_name   = user.role.role_name if user.role else None
         permissions = await self.auth_repo.load_permissions(
             user.user_id, role_name
-        )
+        )  
 
+        # //////////////////
+        #  Staff checking
+        # /////////////////
 
-        
         staff = await self.auth_repo.get_staff_by_user_id(user.user_id)
-
-
-
-
+           # //////////////////
+           #  Staff checking
+           # /////////////////
+        
         await self.audit_repo.log(
             user_id    = user.user_id,
             company_id = user.company_id,
@@ -151,6 +161,7 @@ class AuthService:
             new_value  = {"username": user.username, "role": role_name},
             ip_address = client_ip,
         )
+
 
         access_token  = create_access_token({
             "sub":         str(user.user_id),
@@ -305,6 +316,9 @@ class AuthService:
             department_id = user.department_id,
             status        = user.status.value,
         )
+
+
+        
 
     # =========================================================================
     # GET USER BY USERNAME

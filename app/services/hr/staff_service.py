@@ -51,15 +51,16 @@ class StaffRoleService:
         data:          StaffRoleUpdate,
         company_id:    int,
     ) -> StaffRole:
-        
-
-
         await self.get_by_id(staff_role_id, company_id)
         return await self.repo.update(
             staff_role_id,
             data.model_dump(exclude_none=True),
             company_id,
         )
+
+
+
+        
 
     async def delete(self, staff_role_id: int, company_id: int) -> None:
         deleted = await self.repo.delete(staff_role_id, company_id)
@@ -248,6 +249,18 @@ class StaffService:
 
         existing = await self.repo.get_by_id(staff_id, company_id)
         update_data = data.model_dump(exclude_unset=True)
+
+
+
+        if update_data.get("email"):
+           email_conflict = await self.repo.get_by_email(update_data["email"], company_id)
+        if email_conflict and email_conflict.staff_id != staff_id:
+            raise HTTPException(status_code=409, detail="Email already in use.")
+
+
+
+
+
         if avatar_file and avatar_file.filename:
             folder = f"staff/company_{company_id}"
             upload_result = await storage.upload_image(avatar_file, folder=folder)

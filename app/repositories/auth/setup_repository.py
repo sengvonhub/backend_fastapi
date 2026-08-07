@@ -5,6 +5,8 @@ from app.models.users.user import User
 from app.models.company import Company
 from app.models.roles.role import Role
 from app.models.departments.department import Department
+from app.seed.seed_permissions import ALL_PERMISSIONS, DEFAULT_ROLE_PERMISSIONS
+from app.models.permission.permission import Permission
 
 
 class SetupRepository:
@@ -12,45 +14,15 @@ class SetupRepository:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    # -----------------------------------------------------------------------
-    # CHECK initialized — count users
-    # -----------------------------------------------------------------------
-
     async def count_users(self) -> int:
-        result = await self.db.execute(
-            select(func.count()).select_from(User)
-        )
+        result = await self.db.execute(select(func.count()).select_from(User))
         return result.scalar() or 0
-    
-
-#     {
-#   "initialized": false,
-#   "steps": {
-#     "company": true,
-#     "role": false,
-#     "department": false,
-#     "user": false
-#   },
-#   "current_step": "role"
-# }
-
-#  if multiple check company status
-# await storage.write('company_id', companyId);
-# await storage.write('initialized', true);
-    # -----------------------------------------------------------------------
-    # CHECK duplicates
-    # -----------------------------------------------------------------------
 
     async def get_company_by_code(self, code: str) -> Company | None:
         result = await self.db.execute(
-            select(Company).where(
-                Company.company_code == code.upper()
-            )
+            select(Company).where(Company.company_code == code.upper())
         )
         return result.scalar_one_or_none()
-    
-
-
 
     async def get_user_by_username(self, username: str) -> User | None:
         result = await self.db.execute(
@@ -58,91 +30,71 @@ class SetupRepository:
         )
         return result.scalar_one_or_none()
 
-    # -----------------------------------------------------------------------
-    # CREATE company
-    # -----------------------------------------------------------------------
-
     async def create_company(
-        self,
-        company_name: str,
-        company_code: str,
-        timezone:     str,
-        currency:     str,
+        self, company_name: str, company_code: str, timezone: str, currency: str,
     ) -> Company:
         company = Company(
-            company_name = company_name,
-            company_code = company_code.upper(),
-            plan_type    = "free",
-            status       = "active",
-            timezone     = timezone,
-            currency     = currency,
+            company_name=company_name,
+            company_code=company_code.upper(),
+            plan_type="free",
+            status="active",
+            timezone=timezone,
+            currency=currency,
         )
         self.db.add(company)
-        await self.db.flush()   
+        await self.db.flush()
         return company
-    
 
     # -----------------------------------------------------------------------
-    # CREATE default roles
+    # CREATE default roles — WITH permissions attached
     # -----------------------------------------------------------------------
 
-    async def create_default_roles(
-        self, company_id: int
-    ) -> dict[str, Role]:
+    async def create_default_roles(self, company_id: int) -> dict[str, Role]:
+        result = await self.db.execute(select(Permission))
+        perm_map = {p.code: p for p in result.scalars().all()}
+        missing = [c for c in ALL_PERMISSIONS if c not in perm_map]
+        if missing:
+            new_perms = [Permission(code=c) for c in missing]
+            self.db.add_all(new_perms)
+            await self.db.flush()
+            for p in new_perms:
+                perm_map[p.code] = p
+
         role_names = ["superuser", "admin", "manager", "staff"]
-        roles      = {}
+        roles = {}
         for role_name in role_names:
-            role = Role(
-                company_id = company_id,
-                role_name  = role_name,
-            )
+            role = Role(company_id=company_id, role_name=role_name)
+            perm_codes = DEFAULT_ROLE_PERMISSIONS.get(role_name, [])
+            role.permissions = [perm_map[c] for c in perm_codes if c in perm_map]
             self.db.add(role)
             await self.db.flush()
             roles[role_name] = role
         return roles
-    
 
-
-
-
-    
-    # -----------------------------------------------------------------------
-    # CREATE default department
-    # -----------------------------------------------------------------------
-
-    async def create_default_department(
-        self, company_id: int
-    ) -> Department:
-        dept = Department(
-            company_id      = company_id,
-            department_name = "Management",
-        )
+    async def create_default_department(self, company_id: int) -> Department:
+        dept = Department(company_id=company_id, department_name="Management")
         self.db.add(dept)
         await self.db.flush()
         return dept
 
-    # -----------------------------------------------------------------------
-    # CREATE superuser
-    # -----------------------------------------------------------------------
-
     async def create_superuser(
         self,
-        company_id:    int,
-        username:      str,
+        company_id: int,
+        username: str,
         password_hash: str,
-        full_name:     str,
-        role_id:       int,
+        full_name: str,
+        role_id: int,
         department_id: int,
     ) -> User:
         from app.models.users.user import UserStatus
         user = User(
-            company_id    = company_id,
-            username      = username,
-            password_hash = password_hash,
-            full_name     = full_name,
-            role_id       = role_id,
-            department_id = department_id,
-            status        = UserStatus.active,
+            company_id=company_id,
+            username=username,
+            password_hash=password_hash,
+            full_name=full_name,
+            role_id=role_id,
+            department_id=department_id,
+            status=UserStatus.active,
         )
         self.db.add(user)
         await self.db.commit()

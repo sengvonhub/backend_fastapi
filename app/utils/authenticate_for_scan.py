@@ -159,7 +159,7 @@ async def scan_auth_service(
     user = user_result.scalar_one_or_none()
     if not user or not verify_password(password, user.password_hash):
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=status.HTTP_403_FORBIDDEN,
             detail="Incorrect password.",
         )
 

@@ -159,12 +159,20 @@ class LeaveRequestService:
     # =========================================================================
     # GET MY LEAVES
     # =========================================================================
-
-    async def get_my_leaves(self, staff_id, company_id, skip=0, limit=50):
+    async def get_my_leaves(
+            self, 
+            staff_id, 
+            company_id, 
+            skip=0, 
+            limit=50
+        ):
         leaves = await self.leave_repo.get_by_staff_id(
-            staff_id=staff_id, company_id=company_id, skip=skip, limit=limit)
+            staff_id=staff_id, 
+            company_id=company_id, 
+            skip=skip, 
+            limit=limit
+        )
         return [self._to_response(l) for l in leaves]
-
     # =========================================================================
     # GET ALL
     # =========================================================================

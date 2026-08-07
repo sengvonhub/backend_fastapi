@@ -23,6 +23,7 @@ class QuotationStatus(str, enum.Enum):
 class ArtworkStatus(str, enum.Enum):
     not_provided = "not_provided"
     approved = "approved"
+    needs_revision = "needs_revision"
 
 
 class DeliveryMethod(str, enum.Enum):

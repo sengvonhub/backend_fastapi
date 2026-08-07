@@ -92,6 +92,9 @@ class StaffRolesRepository:
         await self.db.commit()
         return await self.get_by_id(staff_role_id, company_id)
 
+
+
+
     async def delete(self, staff_role_id: int, company_id: int) -> bool:
         staff_role = await self.get_by_id(staff_role_id, company_id)
         if not staff_role:

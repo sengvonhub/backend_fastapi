@@ -3,6 +3,8 @@ from decimal import Decimal
 from typing import Optional
 from pydantic import BaseModel, ConfigDict, model_validator
 
+from app.schemas.quotation_status import ArtworkStatus, DeliveryMethod, QuotationStatus
+
 
 # ===========================================================================
 # QuotationItem
@@ -73,9 +75,9 @@ class QuotationCreate(BaseModel):
     quotation_date:  date
     expiry_date:     Optional[date] = None
     production_days: Optional[int] = None
-    artwork_status:  Optional[str] = None
+    artwork_status:  Optional[ArtworkStatus] = None
     payment_terms:   Optional[str] = None
-    delivery_method: Optional[str] = None
+    delivery_method: Optional[DeliveryMethod] = None
     discount:        Decimal = Decimal("0")
     tax:             Decimal = Decimal("0")
     note:            Optional[str] = None
@@ -89,9 +91,9 @@ class QuotationUpdate(BaseModel):
     quotation_date:  Optional[date] = None
     expiry_date:     Optional[date] = None
     production_days: Optional[int] = None
-    artwork_status:  Optional[str] = None
+    artwork_status:  Optional[ArtworkStatus] = None
     payment_terms:   Optional[str] = None
-    delivery_method: Optional[str] = None
+    delivery_method: Optional[DeliveryMethod] = None
     subtotal:        Optional[Decimal] = None
     discount:        Optional[Decimal] = None
     tax:             Optional[Decimal] = None
@@ -99,8 +101,12 @@ class QuotationUpdate(BaseModel):
 
 
 class QuotationStatusUpdateRequest(BaseModel):
-    status: str   # "draft" | "sent" | "accepted"
+    status: QuotationStatus   # "draft" | "sent" | "accepted"
     note:   Optional[str] = None
+
+
+
+    
 
 
 class QuotationResponse(BaseModel):

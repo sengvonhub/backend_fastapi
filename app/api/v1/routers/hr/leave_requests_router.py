@@ -6,11 +6,12 @@ from app.schemas.schema import (
     LeaveRequestUpdate,
     LeaveRequestResponse,
 )
+
 from app.models.staffs.leave_request import LeaveStatus, LeaveType
 from app.services.hr.leave_requests_service import LeaveRequestService, get_leave_service
 from app.utils.auth import require_login, require_manager
-
 leave_router = APIRouter(prefix="/leave-requests", tags=["Leave Requests"])
+
 
 # ===========================================================================
 # STAFF — own leave requests
@@ -59,7 +60,7 @@ async def get_my_leaves(
     current_user: dict = Depends(require_login),
     service:      LeaveRequestService = Depends(get_leave_service),
 ):
-    staff_id = current_user.get("staff_id")
+    staff_id = int(current_user.get("staff_id"))
     if not staff_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -77,6 +78,11 @@ async def get_my_leaves(
 
 
 
+
+
+# =============================================================================
+# 
+# =============================================================================
 
 @leave_router.post(
     "/{leave_id}/cancel",
@@ -133,6 +139,11 @@ async def get_all_leaves(
 
 
 
+# =============================================================================
+# 
+# =============================================================================
+
+
 @leave_router.get(
     "/pending",
     response_model=list[LeaveRequestResponse],
@@ -151,6 +162,11 @@ async def get_pending_leaves(
     )
 
 
+# =============================================================================
+# 
+# =============================================================================
+
+
 @leave_router.get(
     "/summary",
     summary="[Manager] Get leave stats summary",
@@ -162,6 +178,10 @@ async def get_summary(
     return await service.get_summary(
         company_id=current_user["company_id"])
 
+
+# =============================================================================
+# 
+# =============================================================================
 
 
 
@@ -178,7 +198,13 @@ async def get_leave_by_id(
     return await service.get_by_id(
         leave_id   = leave_id,
         company_id = current_user["company_id"],
-    )
+
+)
+
+
+# =============================================================================
+# 
+# =============================================================================
 
 
 @leave_router.patch(
@@ -207,6 +233,10 @@ async def approve_leave(
     )
 
 
+# =============================================================================
+# 
+# =============================================================================
+
 
 
 @leave_router.patch(
@@ -230,6 +260,11 @@ async def reject_leave(
     )
 
 
+# =============================================================================
+# 
+# =============================================================================
+
+
 @leave_router.delete(
     "/{leave_id}",
     status_code=status.HTTP_200_OK,
@@ -247,3 +282,7 @@ async def delete_leave(
         current_user_id = int(current_user["sub"]),
         client_ip       = request.client.host,
     )
+
+# =============================================================================
+# 
+# =============================================================================

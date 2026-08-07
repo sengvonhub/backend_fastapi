@@ -86,6 +86,8 @@ class AttendanceSettingsUpdate(BaseModel):
         le=1440,
     )
 
+    
+
     timezone: Optional[str] = None
 
 

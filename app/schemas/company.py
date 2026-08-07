@@ -47,6 +47,53 @@ class CompanyCreate(BaseModel):
         }
 
 
+class CompanyRegisterRequest(BaseModel):
+    company_name: str          = Field(..., min_length=2, max_length=255)
+    company_code: str          = Field(..., min_length=2, max_length=50)
+    plan_type:    PlanTypeEnum = PlanTypeEnum.free
+    timezone:     str          = "UTC"
+    currency:     str          = "USD"
+    max_users:    int          = Field(default=10, ge=1)
+    email:        Optional[EmailStr] = None
+    phone:        Optional[str]      = Field(None, max_length=50)
+    address:      Optional[str]      = None
+
+    # Owner / first user — becomes this company's superuser
+    admin_username:  str = Field(..., min_length=3, max_length=100)
+    admin_password:  str = Field(..., min_length=8)
+    admin_full_name: str = Field(..., min_length=2, max_length=255)
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "company_name": "Acme Corp",
+                "company_code": "ACME",
+                "plan_type":    "free",
+                "timezone":     "Asia/Phnom_Penh",
+                "currency":     "USD",
+                "max_users":    10,
+                "email":        "info@acme.com",
+                "admin_username":  "acme_admin",
+                "admin_password":  "SecurePass123!",
+                "admin_full_name": "Jane Doe",
+            }
+        }
+
+
+
+
+class CompanyRegisterResponse(BaseModel):
+    access_token:        str
+    refresh_token:       str
+    access_expires_in:   int
+    refresh_expires_in:  int
+    token_type:          str
+    company:             dict
+    user:                dict
+
+
+
+
 class CompanyUpdate(BaseModel):
     company_name:     Optional[str] = Field(None, min_length=2, max_length=255)
     email:            Optional[str] = None

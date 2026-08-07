@@ -2,6 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select,  delete as sa_delete
 from sqlalchemy.orm import selectinload
 from app.models.notification import Notification
+from app.models.permission.permission import Permission
 from app.models.staffs.staff import Staff
 from app.models.users.user import User
 from app.models.roles.role import Role
@@ -39,7 +40,25 @@ class RoleRepository:
             select(Role).where(
                 Role.role_id    == role_id,
                 Role.company_id == company_id,
-                # role_active(Role),  # ✅ uncomment after confirming Role has is_active + deleted_at
+                # role_active(Role),  
+            )
+        )
+        return result.scalar_one_or_none()
+
+
+
+    
+    async def get_by_id_with_permissions(
+            self, 
+            role_id: int, 
+            company_id: int
+        ) -> Role | None:
+        result = await self.db.execute(
+            select(Role)
+            .options(selectinload(Role.permissions))
+            .where(
+                Role.role_id    == role_id,
+                Role.company_id == company_id,
             )
         )
         return result.scalar_one_or_none()
@@ -58,12 +77,14 @@ class RoleRepository:
         )
         return result.scalar_one_or_none()
 
+
+
     async def get_all(self, company_id: int) -> list[Role]:
         result = await self.db.execute(
             select(Role)
+            .options(selectinload(Role.permissions))  
             .where(
                 Role.company_id == company_id,
-                # role_active(Role),  # ✅ uncomment after confirming Role columns
             )
             .order_by(Role.role_name)
         )
@@ -89,6 +110,29 @@ class RoleRepository:
         return True
 
 
+
+class PermissionRepository:
+
+    def __init__(self, db: AsyncSession):
+        self.db = db
+
+    async def get_by_codes(self, codes: list[str]) -> list[Permission]:
+        if not codes:
+            return []
+        result = await self.db.execute(
+            select(Permission).where(Permission.code.in_(codes))
+        )
+        return result.scalars().all()
+
+    async def get_all(self) -> list[Permission]:
+        result = await self.db.execute(
+            select(Permission).order_by(Permission.code)
+        )
+        return result.scalars().all()
+
+
+
+
 # ===========================================================================
 # USER REPOSITORY
 # ===========================================================================
@@ -97,6 +141,12 @@ class UserRepository:
 
     def __init__(self, db: AsyncSession):
         self.db = db
+
+
+
+    
+
+
 
     async def create(self, **kwargs) -> User:
         user = User(**kwargs)

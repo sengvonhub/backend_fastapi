@@ -188,6 +188,15 @@ class QuotationService:
         self, quotation_id: int, data: QuotationUpdate, company_id: int
     ):
         quotation   = await self.get_by_id(quotation_id, company_id)
+
+        if quotation.invoice_id is not None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot edit a quotation that has already been converted to an invoice.",
+            )
+
+
+
         update_data = data.model_dump(exclude_none=True)
 
         if "customer_id" in update_data:
@@ -256,6 +265,12 @@ class QuotationService:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Cannot delete an accepted quotation.",
             )
+
+        if quotation.invoice_id is not None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot delete a quotation that has already been converted to an invoice.",
+            )
         await self.repo.delete(quotation)
         return {"message": f"Quotation id={quotation_id} deleted."}
 
@@ -282,6 +297,14 @@ class QuotationService:
         self, quotation_id: int, data: QuotationItemCreate, company_id: int
     ):
         await self.get_by_id(quotation_id, company_id)
+
+        quotation = await self.get_by_id(quotation_id, company_id)
+
+        
+        if quotation.invoice_id is not None:
+           raise HTTPException(400, "Cannot modify items on a converted quotation.")
+
+
 
         item = await self.repo.create_item({
             "company_id":   company_id,

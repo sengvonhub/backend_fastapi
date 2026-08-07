@@ -39,22 +39,21 @@ async def scan_authenticate(
     current_user: dict         = Depends(require_login),
     db:           AsyncSession = Depends(get_db),
 ):
-    """
-    Staff re-enters password to get a 15-minute scan token. 
-    scan_token is then used for check-in/check-out.
-    staff_id comes from JWT — not from request body.
-    """
     staff_id = current_user.get("staff_id")
     if not staff_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only staff accounts can authenticate for scanning.",
         )
+
+        
     return await scan_auth_service(
         password = data.password,
         staff_id = staff_id,
         db       = db,
     )
+
+    
 
 
 

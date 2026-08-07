@@ -2,6 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import HTTPException, status, Depends
 import redis.asyncio as redis
 
+from app.models.roles.role import Role
 from app.models.users.user import User, UserStatus
 from app.schemas.schema import (
     DepartmentSimple, RoleCreate, RoleResponse,
@@ -13,6 +14,7 @@ from app.repositories.auth.user_respo import (
     RoleRepository,
     UserRepository,
     DepartmentRepository,
+    PermissionRepository
 )
 from app.repositories.audit.auditlog_repository import AuditLogRepository
 from app.services.communication.notifications_service import NotificationService
@@ -31,16 +33,22 @@ class UserService:
         audit_repo:   AuditLogRepository,
         role_repo:    RoleRepository,
         dept_repo:    DepartmentRepository,
+        permission_repo: PermissionRepository,
         redis_client: redis.Redis,
     ):
         self.user_repo  = user_repo
         self.audit_repo = audit_repo
         self.role_repo  = role_repo
         self.dept_repo  = dept_repo
+        self.permission_repo = permission_repo
         self.notif      = NotificationService(
             db           = db,
             redis_client = redis_client,
         )
+
+
+
+   
 
     # ==========================================================================
     # ROLE
@@ -60,11 +68,59 @@ class UserService:
 
     async def get_all_roles(self, company_id: int) -> list[RoleResponse]:
         return await self.role_repo.get_all(company_id)
+
     
+
+
     async def delete_role(self, role_id: int, company_id: int) -> None:
         deleted = await self.role_repo.delete(role_id, company_id)
         if not deleted:
             raise HTTPException(status_code=404, detail="Role not found.")
+
+
+
+
+    async def set_role_permissions(
+            self, 
+            role_id: int, 
+            permission_codes: list[str], 
+            company_id: int
+        ) -> Role:
+            role = await self.role_repo.get_by_id_with_permissions(role_id, company_id)
+            if not role:
+                raise HTTPException(status_code=404, detail="Role not found.")
+
+    
+            unique_codes = set(permission_codes)
+            permissions  = await self.permission_repo.get_by_codes(list(unique_codes))
+    
+
+
+            missing = unique_codes - {p.code for p in permissions}
+            if missing:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Unknown permission code(s): {', '.join(sorted(missing))}",
+                )
+
+                
+    
+            role.permissions = permissions
+            await self.role_repo.db.commit()
+            await self.role_repo.db.refresh(role, attribute_names=["permissions"])
+            return role
+
+
+
+
+
+
+
+
+
+
+
+
 
     # ==========================================================================
     # DEPARTMENT
@@ -118,9 +174,6 @@ class UserService:
         current_user_actions_id: int,
         client_ip:               str,
     ) -> RegisterResponse:
-
-
-
 
         # //////////////////////////////////////////////////////////////
         # ✅ Check username unique globally
@@ -332,5 +385,6 @@ async def get_user_service(
         audit_repo   = AuditLogRepository(db),
         role_repo    = RoleRepository(db),
         dept_repo    = DepartmentRepository(db),
+        permission_repo = PermissionRepository(db),
         redis_client = redis_client,
     )

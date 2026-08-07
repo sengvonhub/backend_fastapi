@@ -15,18 +15,22 @@ class StockMovement(Base):
     __tablename__ = "stock_movements"
 
     movement_id:      Mapped[int]            = mapped_column(Integer, primary_key=True, autoincrement=True)
-
     variant_id:       Mapped[int]            = mapped_column(Integer, ForeignKey("product_variants.variant_id", ondelete="CASCADE"), nullable=False, index=True)
-
     company_id:       Mapped[int]            = mapped_column(Integer, ForeignKey("companies.company_id"), nullable=False, index=True)
+
     qty_in:           Mapped[int]            = mapped_column(Integer, default=0)
     qty_out:          Mapped[int]            = mapped_column(Integer, default=0)
+
     balance_quantity: Mapped[int]            = mapped_column(Integer, nullable=False)
+    
     movement_type:    Mapped[Optional[str]]  = mapped_column(String(50), nullable=True)
+
     date:             Mapped[Optional[str]]  = mapped_column(Date, nullable=True)
     reference_id:     Mapped[Optional[int]]  = mapped_column(Integer, nullable=True)
     unit_price:       Mapped[Optional[float]] = mapped_column(Numeric(12, 2), nullable=True)
+    
     opening_balance:  Mapped[Optional[float]] = mapped_column(Numeric(12, 2), nullable=True)
+
     # soft delete
     
     is_deleted:       Mapped[bool]           = mapped_column(Boolean, default=False, nullable=False)

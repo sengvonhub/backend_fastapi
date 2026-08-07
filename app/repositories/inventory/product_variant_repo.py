@@ -65,6 +65,8 @@ class ProductVariantRepository:
         return r.scalar_one_or_none()
 
 
+
+
     async def create(self, data: dict) -> ProductVariant:
         obj = ProductVariant(**data)
         self.db.add(obj)

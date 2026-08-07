@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, status,File,Form, UploadFile
 from datetime import date
 from typing import Optional
 
+from app.core.permission import Permissions
 from app.schemas.schema import (
     StaffRoleCreate, StaffRoleUpdate, StaffRoleResponse,
     StaffCreate, StaffUpdate, StaffResponse,
@@ -10,7 +11,7 @@ from app.services.hr.staff_service import (
     StaffRoleService, get_staff_role_service,
     StaffService, get_staff_service,
 )
-from app.utils.auth import require_manager, require_login
+from app.utils.auth import require_manager, require_login, require_permission
 
 staff_role_router = APIRouter(prefix="/staff-roles", tags=["Staff Roles"])
 staff_router      = APIRouter(prefix="/staff",       tags=["Staff"])
@@ -28,7 +29,7 @@ staff_router      = APIRouter(prefix="/staff",       tags=["Staff"])
 )
 async def create_staff_role(
     data:         StaffRoleCreate,
-    current_user: dict             = Depends(require_manager),
+    current_user: dict             = Depends(require_permission(Permissions.MANAGE_USERS)),
     service:      StaffRoleService = Depends(get_staff_role_service),
 ):
     return await service.create(data, company_id=current_user["company_id"])
@@ -41,7 +42,7 @@ async def create_staff_role(
     summary="[Manager] List all staff roles",
 )
 async def get_all_staff_roles(
-    current_user: dict             = Depends(require_manager),
+    current_user: dict             = Depends(require_permission(Permissions.MANAGE_USERS)),
     service:      StaffRoleService = Depends(get_staff_role_service),
 ):
     return await service.get_all(company_id=current_user["company_id"])
@@ -58,10 +59,13 @@ async def get_all_staff_roles(
 
 async def get_staff_role(
     staff_role_id: int,
-    current_user:  dict             = Depends(require_manager),
+    current_user:  dict             = Depends(require_permission(Permissions.MANAGE_USERS)),
     service:       StaffRoleService = Depends(get_staff_role_service),
 ):
     return await service.get_by_id(staff_role_id, company_id=current_user["company_id"])
+
+
+
 
 
 
@@ -71,11 +75,10 @@ async def get_staff_role(
     response_model=StaffRoleResponse,
     summary="[Manager] Update staff role",
 )
-
 async def update_staff_role(
     staff_role_id: int,
     data:          StaffRoleUpdate,
-    current_user:  dict             = Depends(require_manager),
+    current_user:  dict             = Depends(require_permission(Permissions.MANAGE_USERS)),
     service:       StaffRoleService = Depends(get_staff_role_service),
 ):
     return await service.update(
@@ -88,6 +91,8 @@ async def update_staff_role(
 
 
 
+
+
 @staff_role_router.delete(
     "/{staff_role_id}",
     status_code=status.HTTP_204_NO_CONTENT,
@@ -95,7 +100,7 @@ async def update_staff_role(
 )
 async def delete_staff_role(
     staff_role_id: int,
-    current_user:  dict             = Depends(require_manager),
+    current_user:  dict             = Depends(require_permission(Permissions.MANAGE_USERS)),
     service:       StaffRoleService = Depends(get_staff_role_service),
 ):
     await service.delete(staff_role_id, company_id=current_user["company_id"])
@@ -115,10 +120,13 @@ async def delete_staff_role(
 )
 async def create_staff(
     data:         StaffCreate,
-    current_user: dict         = Depends(require_manager),
+    current_user: dict         = Depends(require_permission(Permissions.MANAGE_USERS)),
     service:      StaffService = Depends(get_staff_service),
 ):
     return await service.create(data, company_id=current_user["company_id"])
+
+
+
 
 
 
@@ -139,19 +147,22 @@ async def get_my_staffs(
 
 
 
+
+
+
+
+
+
 @staff_router.get(
     "/",
     response_model=list[StaffResponse],
     summary="[Manager] List all staff",
 )
 async def get_all_staff(
-    current_user: dict         = Depends(require_manager),
+    current_user: dict         = Depends(require_login),
     service:      StaffService = Depends(get_staff_service),
 ):
-    # ✅ correct method name + company_id
     return await service.get_all(company_id=current_user["company_id"])
-
-
 
 
 @staff_router.get(
@@ -160,11 +171,10 @@ async def get_all_staff(
     summary="[Manager] List all managers",
 )
 async def get_managers(
-    current_user: dict         = Depends(require_manager),
+    current_user: dict         = Depends(require_permission(Permissions.MANAGE_USERS)),
     service:      StaffService = Depends(get_staff_service),
 ):
     return await service.get_managers(company_id=current_user["company_id"])
-
 
 
 
@@ -265,7 +275,14 @@ async def get_staff(
 
 
 
-@staff_router.patch("/{staff_id}", response_model=StaffResponse)
+
+
+
+@staff_router.patch(
+        "/{staff_id}", 
+        response_model=StaffResponse,
+        summary="[Manager] Update staff"
+    )
 async def update_staff(
     staff_id: int,
     name: Optional[str] = Form(None),
@@ -295,6 +312,13 @@ async def update_staff(
         company_id=current_user["company_id"],
         avatar_file=avatar_file,
     )
+
+
+
+
+
+
+
 
 
 @staff_router.patch("/{staff_id}/avatar", response_model=StaffResponse)

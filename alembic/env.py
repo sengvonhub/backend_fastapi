@@ -30,6 +30,7 @@ from app.models.refresh_token import RefreshToken
 from app.models.CompanyStatusHistory import CompanyStatusHistory
 
 from app.models.quotations import Quotation, QuotationItem
+from app.models.permission import Permission, RolePermission
 
 
 

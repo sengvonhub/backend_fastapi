@@ -92,6 +92,8 @@ class QuotationRepository:
             grouped[sid]["quotations"].append(quotation)
         return list(grouped.values())
 
+
+
     async def get_by_id(
         self, quotation_id: int, company_id: int
     ) -> Quotation | None:
@@ -145,6 +147,9 @@ class QuotationRepository:
         await self.db.commit()
         await self.db.refresh(quotation)
         return quotation
+
+
+    
 
     async def delete(self, quotation: Quotation) -> None:
         await self.db.delete(quotation)

@@ -2,15 +2,14 @@ docker-compose up --build -d |=>
 docker compose up -d --build |=>
 
 
+
+
 */ker compose build --no-cache |=>
-
-
 docker compose down -v |=>
 docker compose up |=>
 
 
 docker-compose exec app alembic revision --autogenerate -m "create roles and users" |=> add table with docker Then create new migration
-
 docker-compose exec app alembic upgrade head  |=>  set to db i docker Then apply new migration
  
 docker-compose exec app alembic downgrade -1  |=> rollback
@@ -28,7 +27,6 @@ alembic downgrade base                        |=> Reset ALL migrations (⚠️ d
 ////////////////////////////////////////////////////////////////////////////////////////
 
 docker-compose exec app alembic revision --autogenerate -m "fix user department models" => 
-
 
 docker-compose exec app alembic upgrade head
 
@@ -143,3 +141,64 @@ SELECT *
 FROM refresh_token
 WHERE user_id = 15
   AND is_revoked = FALSE;
+
+//////////////////////////////////////////////////////////////////////////
+
+SELECT pv.variant_id, pv.product_id, pv.sku, pv.stock_quantity, p.company_id
+FROM product_variants pv
+JOIN products p ON p.product_id = pv.product_id
+WHERE pv.sku = 'MGZ';
+
+
+////////////////////////////////////// TEST //////////////////////////////
+
+
+INSERT INTO stock_movements (
+    company_id, variant_id, qty_in, qty_out,
+    opening_balance, balance_quantity, movement_type, date, is_deleted
+)
+VALUES (
+    1,      -- company_id
+    2,     
+    265, 0,
+    0,
+    265,
+    'opening',
+    '2026-07-01',
+    false
+);
+
+///////////////////////////////| TEST |//////////////////////////
+
+UPDATE product_variants
+SET stock_quantity = 265
+WHERE variant_id = 2;
+
+
+////////////////////////////////////////////////////////////////
+
+
+SELECT movement_id, qty_in, qty_out, opening_balance, balance_quantity, movement_type, date
+FROM stock_movements WHERE variant_id = 2 ORDER BY date, movement_id;
+
+SELECT stock_quantity FROM product_variants WHERE variant_id = 2;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

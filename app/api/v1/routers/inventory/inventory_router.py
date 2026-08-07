@@ -1,14 +1,16 @@
+from datetime import datetime
 from decimal import Decimal
 from fastapi import APIRouter, Depends, File, Form, Query, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Optional
+from typing import Literal, Optional
 from app.schemas.schema import (
-    ProductImageResponse, SupplierCreate, SupplierUpdate, SupplierResponse,
+    ProductImageResponse, StockMovementReportResponse, SupplierCreate, SupplierUpdate, SupplierResponse,
     CustomerCreate, CustomerUpdate, CustomerResponse,
     CategoryCreate, CategoryUpdate, CategoryResponse,
     ProductCreate, ProductUpdate, ProductResponse,
     StockMovementCreate, StockMovementResponse,
     InvoiceCreate, InvoiceUpdate, InvoiceResponse,
+    InvoiceFromQuotation
 )
 from app.services.inventory.inventory_service import (
     SupplierService, 
@@ -403,11 +405,6 @@ async def list_products(
 
 
 
-
-
-
-
-
 @product_router.get(
         "/{product_id}", 
         response_model=ProductResponse
@@ -419,10 +416,6 @@ async def get_product(
 ):
     company_id = int(current_user["company_id"])
     return await service.get_by_id(product_id, company_id)
-
-
-
-
 
 
 @product_router.post(
@@ -454,6 +447,9 @@ async def update_product(
     return await service.update(product_id, data, company_id)
 
 # --- Product Images ---
+
+
+
 
 @product_router.post(
     "/{product_id}/images", 
@@ -544,17 +540,69 @@ async def delete_product(
 
 
 @stock_movement_router.get(
+    "/reports",
+    response_model=StockMovementReportResponse,
+    summary="Stock movement report — all or by category, grouped by day/week/month/year",
+)
+async def get_stock_report(
+    period: Literal["day", "week", "month", "year", "all"] = Query("all"),
+    category_id: Optional[int] = Query(None),
+    variant_id: Optional[int] = Query(None),
+    start_date: Optional[datetime] = Query(None, description="e.g. 2026-08-01"),
+    end_date: Optional[datetime] = Query(None, description="e.g. 2026-09-01 (exclusive)"),
+    include_balance: bool = Query(
+        False, description="Include opening/closing stock balance per bucket (ignored when period=all)"
+    ),
+    current_user: dict = Depends(require_login),
+    service: StockMovementService = Depends(get_stock_service),
+
+):
+    company_id = int(current_user["company_id"])
+    return await service.get_report(
+        company_id, period, 
+        category_id, variant_id, 
+        include_balance, 
+        start_date, 
+        end_date
+    )
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+@stock_movement_router.get(
         "/", 
         response_model=list[StockMovementResponse],
         summary="Products ID")
-
 async def list_movements(
     variant_id: Optional[int] = Query(None),
+    start_date: Optional[datetime] = Query(None),
+    end_date: Optional[datetime] = Query(None),
     current_user: dict = Depends(require_login),
-    service: StockMovementService = Depends(get_stock_service)
+    service: StockMovementService = Depends(get_stock_service),
 ):
     company_id = int(current_user["company_id"])
-    return await service.get_all(company_id, variant_id)
+    return await service.get_all(company_id, variant_id, start_date, end_date)
+
+
+
+
+
+
+
+
+
 
 
 @stock_movement_router.get(
@@ -569,6 +617,9 @@ async def get_movement(
     ):
     company_id = int(current_user["company_id"])
     return await service.get_by_id(movement_id, company_id)
+
+
+
 
 
 
@@ -658,6 +709,28 @@ async def get_invoice(
 
 
 
+# ===========================================================================
+# INVOICES  CREATE FROM QUOTATION
+# ===========================================================================
+
+@invoice_router.post(
+    "/from-quotation",
+    response_model=InvoiceResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create invoice from an accepted quotation — auto deducts stock",
+)
+async def create_invoice_from_quotation(
+    data: InvoiceFromQuotation,
+    current_user: dict = Depends(require_login),
+    service: InvoiceService = Depends(get_Invoice_service),
+):
+    company_id = int(current_user["company_id"])
+    staff_id = int(current_user["staff_id"])
+    return await service.create_from_quotation(
+        data.quotation_id, company_id, staff_id, data.payment_type
+    )
+
+
 @invoice_router.post(
     "/", 
     response_model=InvoiceResponse, 
@@ -670,7 +743,10 @@ async def create_invoice(
     service: InvoiceService = Depends(get_Invoice_service)
     ):
     company_id = int(current_user["company_id"])
-    return await service.create(data, company_id)
+    staff_id = int(current_user["staff_id"])
+    return await service.create(data, company_id, staff_id)
+
+
 
 
 @invoice_router.patch(
@@ -741,6 +817,18 @@ async def delete_invoice(
     ):
     company_id = int(current_user["company_id"])
     return await service.delete(invoice_id,  company_id)
+
+
+
+
+
+
+
+
+
+
+
+
 
 # ===========================================================
 # 

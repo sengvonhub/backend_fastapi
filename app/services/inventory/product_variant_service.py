@@ -1,19 +1,29 @@
+from datetime import datetime
+
 from fastapi import Depends, HTTPException, UploadFile
+import redis
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.dependencies import get_db
+from app.dependencies import get_db, get_redis_client
+from app.repositories.inventory.inventory_repository import StockMovementRepository
 from app.repositories.inventory.product_variant_repo import ProductVariantRepository
-from app.schemas.schema import ProductVariantCreate, ProductVariantUpdate
+from app.schemas.schema import ProductVariantCreate, ProductVariantUpdate, StockMovementCreate
 from app.models.products.product_variant import ProductVariant
 from app.models.products.product_image import ProductImage
+from app.services.inventory.inventory_service import StockMovementService
 from app.services.storage import CloudinaryStorage
 
 storage = CloudinaryStorage()
 
 
+
+
+
+
 class ProductVariantService:
-    def __init__(self, db: AsyncSession, repo: ProductVariantRepository):
+    def __init__(self, db: AsyncSession, repo: ProductVariantRepository, stock_service: StockMovementService):
         self.db = db
         self.repo = repo
+        self.stock_service = stock_service
 
     async def get_all(self, product_id: int, company_id: int) -> list[ProductVariant]:
         return await self.repo.get_all(product_id, company_id)
@@ -25,24 +35,51 @@ class ProductVariantService:
         if not obj:
             raise HTTPException(404, f"Variant id={variant_id} not found.")
         return obj
+    
+
+
+
 
 
 
 
     async def create(
         self, product_id: int,
-        data: ProductVariantCreate, 
+        data: ProductVariantCreate,
         company_id: int
     ) -> ProductVariant:
-        # guard duplicate SKU
+
+        
         if data.sku:
             existing = await self.repo.get_by_sku(product_id, data.sku)
             if existing:
                 raise HTTPException(409, f"SKU '{data.sku}' already exists for this product.")
-        return await self.repo.create({
-            **data.model_dump(),
-            "product_id": product_id,
+        initial_stock = data.stock_quantity or 0
+        variant_data = data.model_dump()
+        variant_data["stock_quantity"] = 0
+        variant = await self.repo.create({
+                **variant_data,
+                "product_id": product_id,
         })
+        if initial_stock > 0:
+
+
+            await self.stock_service.create(
+                StockMovementCreate(
+                    product_id=product_id,
+                    variant_id=variant.variant_id,
+                    qty_in=initial_stock,
+                    qty_out=0,
+                    movement_type="purchase",
+                    reference="Initial stock",
+                    date=datetime.utcnow().date(),
+                ),
+                company_id,
+            )
+            variant = await self.repo.get_by_id(variant.variant_id, product_id, company_id)
+
+        return variant
+
 
 
 
@@ -52,16 +89,42 @@ class ProductVariantService:
         self,
         variant_id: int,
         product_id: int,
-        data:       ProductVariantUpdate,
+        data: ProductVariantUpdate,
         company_id: int,
     ) -> ProductVariant:
         obj = await self.get_by_id(variant_id, product_id, company_id)
-        # guard duplicate SKU on update
+
         if data.sku and data.sku != obj.sku:
             existing = await self.repo.get_by_sku(product_id, data.sku)
             if existing:
                 raise HTTPException(409, f"SKU '{data.sku}' already exists for this product.")
-        return await self.repo.update(obj, data.model_dump(exclude_none=True))
+        update_data = data.model_dump(exclude_none=True)
+        new_stock_quantity = update_data.pop("stock_quantity", None) 
+
+        if update_data:
+            obj = await self.repo.update(obj, update_data)
+        if new_stock_quantity is not None and new_stock_quantity != obj.stock_quantity:
+            diff = new_stock_quantity - obj.stock_quantity
+            await self.stock_service.create(
+                StockMovementCreate(
+                    product_id=product_id,
+                    variant_id=variant_id,
+                    qty_in=diff if diff > 0 else 0,
+                    qty_out=-diff if diff < 0 else 0,
+                    movement_type="adjustment",
+                    reference="Manual stock adjustment",
+                    date=datetime.utcnow().date(),
+                ),
+                company_id,
+            )
+            obj = await self.get_by_id(variant_id, product_id, company_id)
+
+        return obj
+
+
+
+
+
 
 
 
@@ -76,12 +139,7 @@ class ProductVariantService:
                 await storage.delete_asset(img.image_public_id)
         await self.repo.delete(obj)
 
-
-
-
     # ── Variant Images ──────────────────────────────────────────────────────
-
-
 
     async def add_image(
         self,
@@ -105,11 +163,6 @@ class ProductVariantService:
             "is_primary":      is_primary,
             "sort_order":      sort_order,
         })
-    
-
-
-
-    
 
     async def set_primary_image(
         self,
@@ -123,9 +176,6 @@ class ProductVariantService:
             raise HTTPException(404, f"Image id={images_id} not found.")
         await self.repo.clear_primary_flags(variant_id, company_id)
         return await self.repo.update_image(img, {"is_primary": True})
-
-
-
 
     async def delete_image(
         self,
@@ -145,8 +195,17 @@ class ProductVariantService:
 
 async def get_product_variant_service(
     db: AsyncSession = Depends(get_db),
+    redis_client: redis.Redis = Depends(get_redis_client),
 ) -> ProductVariantService:
+    variant_repo = ProductVariantRepository(db)
+    stock_service = StockMovementService(
+        db=db,
+        repo_stock=StockMovementRepository(db),
+        variant_repo=variant_repo,
+        redis_client=redis_client,
+    )
     return ProductVariantService(
         db=db,
-        repo=ProductVariantRepository(db),
+        repo=variant_repo,
+        stock_service=stock_service,
     )

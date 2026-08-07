@@ -1,7 +1,9 @@
 from datetime import datetime, timedelta
+from decimal import Decimal
 
+from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import Date, cast, func, select, update
+from sqlalchemy import Date, and_, cast, func, select, update
 from app.exceptions.exceptions import NotFoundException
 from sqlalchemy.orm import selectinload
 from app.models.products.product_variant import ProductVariant
@@ -14,6 +16,7 @@ from app.models.products.stock_movement import StockMovement
 from app.models.invoices.invoice import Invoice
 from app.models.invoices.invoice_item import InvoiceItem
 from app.models.invoices.invoice_attachments import InvoiceAttachment
+from app.schemas.schema import StockMovementReportBucket, StockMovementReportResponse
 
 
 # ===========================================================================
@@ -263,11 +266,6 @@ class ProductRepository:
         return await self.get_by_id(obj.product_id, obj.company_id)  
 
 
-
-
-
-
-
     async def delete(self, obj: Product) -> None:
         await self.db.delete(obj)
         await self.db.commit()
@@ -335,11 +333,25 @@ class ProductRepository:
 # STOCK MOVEMENT
 # ===========================================================================
 
+
+
+
+
 class StockMovementRepository:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def get_all(self, company_id: int, variant_id: int | None = None):
+
+
+
+
+    async def get_all(
+            self, 
+            company_id: int, 
+            variant_id: int | None = None,
+            start_date: datetime | None = None,
+            end_date: datetime | None = None,
+        ):
         query = (
             select(StockMovement)
             .where(
@@ -348,10 +360,189 @@ class StockMovementRepository:
             )
             .order_by(StockMovement.date.desc())
         )
+
         if variant_id:
             query = query.where(StockMovement.variant_id == variant_id)
+
+        if start_date :
+            query = query.where(StockMovement.date >= start_date)
+
+        if end_date:
+            query = query.where(StockMovement.date <= end_date)
+        
         r = await self.db.execute(query)
         return r.scalars().all()
+
+
+
+    async def get_report(
+        self,
+        company_id: int,
+        period: str,
+        category_id: int | None = None,
+        variant_id: int | None = None,
+        start_date: datetime | None = None,
+        end_date: datetime | None = None,
+    ):
+        filters = [Product.company_id == company_id]
+
+        if category_id is not None:
+            filters.append(Product.category_id == category_id)
+        if variant_id is not None:
+            filters.append(ProductVariant.variant_id == variant_id)
+
+        movement_filters = [
+                StockMovement.variant_id == ProductVariant.variant_id,
+                StockMovement.is_deleted == False,
+            ]
+        
+        if start_date is not None:
+            movement_filters.append(StockMovement.date >= start_date)
+        if end_date is not None:
+            movement_filters.append(StockMovement.date < end_date)
+            
+
+
+
+
+        base = (
+            select(
+                Product.category_id,
+                Category.category_name,
+                Product.product_id,
+                Product.name,
+                Product.descriptions,
+                ProductVariant.variant_id,
+                ProductVariant.sku,
+                ProductVariant.specs,
+                ProductVariant.price,
+                func.coalesce(func.sum(StockMovement.qty_in), 0).label("qty_in"),
+                func.coalesce(func.sum(StockMovement.qty_out), 0).label("qty_out"),
+                func.count(StockMovement.movement_id).label("movement_count"),
+
+                func.coalesce(func.sum(StockMovement.qty_in * func.coalesce(StockMovement.unit_price, ProductVariant.price)), 0).label("value_in"),
+                func.coalesce(func.sum(StockMovement.qty_out * func.coalesce(StockMovement.unit_price, ProductVariant.price)), 0).label("value_out"),
+                )
+
+            .select_from(Product)
+            .outerjoin(Category, Category.category_id == Product.category_id)
+            .outerjoin(ProductVariant, ProductVariant.product_id == Product.product_id)
+            .outerjoin(StockMovement,and_(*movement_filters))
+            .where(*filters)
+        )
+
+
+        group_cols = [
+            Product.category_id, Category.category_name,
+            Product.product_id, Product.name, Product.descriptions,
+            ProductVariant.variant_id, ProductVariant.sku,
+            ProductVariant.specs, ProductVariant.price,
+        ]
+        if period == "all":
+            query = base.group_by(*group_cols)
+        else:
+            trunc = func.date_trunc(period, StockMovement.date)
+            query = (
+                base.add_columns(trunc.label("bucket"))
+                .group_by(trunc, *group_cols)
+                .order_by(ProductVariant.variant_id, trunc)
+            )
+
+        r = await self.db.execute(query)
+        return r.all()
+
+
+
+
+
+
+
+
+
+
+
+
+    async def get_balance_by_bucket(
+             self,
+            company_id: int,
+            period: str,
+            variant_id: int | None = None,
+            start_date: datetime | None = None,
+            end_date: datetime | None = None,
+    ): 
+        trunc = func.date_trunc(period, StockMovement.date).label("bucket")
+        row_num = (func.row_number()
+            .over(
+                partition_by=(StockMovement.variant_id, trunc),
+                order_by=(StockMovement.date.desc(), StockMovement.movement_id.desc()),
+            )
+            .label("rn")
+        )
+
+        filters = [
+        StockMovement.company_id == company_id,
+        StockMovement.is_deleted == False,
+       ]
+
+        if variant_id is not None:
+           filters.append(StockMovement.variant_id == variant_id)
+        if start_date is not None:
+            filters.append(StockMovement.date >= start_date)
+        if end_date is not None:
+            filters.append(StockMovement.date < end_date)
+        subq = (
+            select(
+                StockMovement.variant_id,
+                trunc,
+                StockMovement.balance_quantity,
+                row_num,
+            )
+            .where(*filters)
+            .subquery()
+        )
+        query = (
+            select(
+                subq.c.variant_id,
+                subq.c.bucket,
+                subq.c.balance_quantity.label("closing_balance"),
+            )
+            .where(subq.c.rn == 1)
+            .order_by(subq.c.variant_id, subq.c.bucket)
+        )
+        r = await self.db.execute(query)
+        return r.all()
+
+
+    async def get_opening_balance_before(
+        self,
+        company_id: int,
+        variant_id: int,
+        start_date: datetime,
+    ) -> int:
+        query = (
+            select(StockMovement.balance_quantity)
+            .where(
+                StockMovement.company_id == company_id,
+                StockMovement.variant_id == variant_id,
+                StockMovement.date < start_date,
+                StockMovement.is_deleted == False,
+            )
+            .order_by(StockMovement.date.desc(), StockMovement.movement_id.desc())
+            .limit(1)
+        )
+        r = await self.db.execute(query)
+        return r.scalar_one_or_none() or 0
+
+
+
+
+
+
+
+
+
+
+
 
     async def get_by_id(self, movement_id: int, company_id: int):
         r = await self.db.execute(
@@ -363,6 +554,8 @@ class StockMovementRepository:
         )
         return r.scalar_one_or_none()
 
+
+
     async def create(self, data: dict) -> StockMovement:
         obj = StockMovement(**data)
         self.db.add(obj)
@@ -370,7 +563,14 @@ class StockMovementRepository:
         await self.db.refresh(obj)
         return obj
 
-    async def update(self, obj: StockMovement, data: dict) -> StockMovement:  # ADD
+
+
+
+    
+
+
+
+    async def update(self, obj: StockMovement, data: dict) -> StockMovement:
         for k, v in data.items():
             setattr(obj, k, v)
         await self.db.commit()
@@ -380,6 +580,16 @@ class StockMovementRepository:
     async def delete(self, obj: StockMovement) -> None:
         await self.db.delete(obj)
         await self.db.commit()
+
+
+
+
+
+
+
+
+
+
 
 # ===========================================================================
 # INVOICE
@@ -782,14 +992,6 @@ class DashboardRepository:
 
 
 
-
-
-
-
-
-    #  ==
-    # 
-    #  ==
 
     
 

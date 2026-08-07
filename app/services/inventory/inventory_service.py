@@ -3,12 +3,19 @@ import json
 
 from fastapi import HTTPException, UploadFile, status, Depends
 from enum import Enum
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from decimal import Decimal
 from app.dependencies import get_db, get_redis_client
 import redis.asyncio as redis
+from app.models.category import Category
 from app.models.products.product import Product
+from app.models.products.product_variant import ProductVariant
+from app.models.products.stock_movement import StockMovement
+from app.repositories.hr.staff_repository import StaffRepository
 from app.repositories.inventory.product_variant_repo import ProductVariantRepository
+from app.repositories.quotation.quotation_repository import QuotationRepository
+from app.schemas.quotation_status import QuotationStatus
 from app.services.communication.notifications_service import NotificationService
 from app.repositories.inventory.inventory_repository import (
     DashboardRepository,
@@ -28,6 +35,9 @@ from app.schemas.schema import (
     ProductCreate, ProductUpdate,
     StockMovementCreate,
     InvoiceCreate, InvoiceUpdate,
+    StockMovementResponse,
+    StockMovementReportBucket,
+    StockMovementReportResponse,
 )
 from app.models.supplier.supplier import Supplier
 
@@ -190,10 +200,6 @@ class CustomerService:
 
     async def get_all(self, company_id: int):
         return await self.custom_repo.get_all(company_id)
-    
-
-
-
 
     async def get_by_id(self, customer_id: int, company_id: int):
         obj = await self.custom_repo.get_by_id(customer_id, company_id)
@@ -320,6 +326,9 @@ class CategoryService:
         return obj
 
 
+
+
+
     async def create(self, data: CategoryCreate, company_id: int, image: UploadFile | None = None):
         payload = {**data.model_dump(), "company_id": company_id}
 
@@ -332,6 +341,8 @@ class CategoryService:
     
 
     
+
+
 
     async def update(
         self,
@@ -400,8 +411,6 @@ async def get_category_service(
     )
 
 
-
-
 # ===========================================================================
 # PRODUCT SERVICE
 # ===========================================================================
@@ -410,8 +419,6 @@ async def get_category_service(
 
 
 class ProductService:
-
-
 
     def __init__(
         self, 
@@ -558,7 +565,6 @@ async def get_product_service(
 # ===========================================================================
 # STOCK MOVEMENT SERVICE
 # ===========================================================================
-
 class StockMovementService:
     def __init__(
         self, 
@@ -572,16 +578,144 @@ class StockMovementService:
         self.notify = NotificationService(db=db, redis_client=redis_client)
 
 
+        # ///////////////////////////////////////////////////
+    def _default_range_for_period(self, period: str, now: datetime) -> tuple[datetime | None, datetime | None]:
+            if period == "day":
+                start = datetime(now.year, now.month, now.day)
+                end = start + timedelta(days=1)
+            elif period == "week":
+                start = datetime(now.year, now.month, now.day) - timedelta(days=now.weekday())
+                end = start + timedelta(days=7)
+            elif period == "month":
+                start = datetime(now.year, now.month, 1)
+                end = datetime(now.year + 1, 1, 1) if now.month == 12 else datetime(now.year, now.month + 1, 1)
+            elif period == "year":
+                start = datetime(now.year, 1, 1)
+                end = datetime(now.year + 1, 1, 1)
+            else:
+                return None, None
+            return start, end
+    # /////////////////////////////////////////////////////
+
+
+
+
 
 
 
     async def get_all(
-            self, 
-            company_id: int, 
-            variant_id: int | None = None
+           self,
+           company_id: int,
+           variant_id: int | None = None,
+           start_date: datetime | None = None,
+           end_date: datetime | None = None,
         ):
-        return await self.repo_stock.get_all(company_id, variant_id)
-    
+        return await self.repo_stock.get_all(company_id, variant_id, start_date, end_date)
+
+
+
+    async def get_report(
+        self,
+        company_id: int,
+        period: str,
+        category_id: int | None = None,
+        variant_id: int | None = None,
+        include_balance: bool = False,
+        start_date: datetime | None = None,
+        end_date: datetime | None = None,
+    ) -> StockMovementReportResponse:
+
+        if period != "all" and start_date is None and end_date is None:
+            start_date, end_date = self._default_range_for_period(period, datetime.utcnow())
+
+        rows = await self.repo_stock.get_report(company_id, period, category_id, variant_id, start_date, end_date)
+
+        opening_by_variant: dict[int, int] = {}
+        if include_balance and period != "all" and start_date is not None:
+            variant_ids = {row.variant_id for row in rows}
+            for vid in variant_ids:
+                prior = await self.repo_stock.get_opening_balance_before(
+                    company_id, vid, start_date
+                )
+                opening_by_variant[vid] = prior or 0
+
+        buckets = []
+        total_in = total_out = 0
+        total_value_in = total_value_out = Decimal(0)
+        total_closing_stock_value = Decimal(0)         
+
+        for row in rows:
+
+            qty_in = row.qty_in or 0
+            qty_out = row.qty_out or 0
+            value_in = row.value_in or Decimal(0)
+            value_out = row.value_out or Decimal(0)
+
+            total_in += qty_in
+            total_out += qty_out
+            total_value_in += value_in
+            total_value_out += value_out
+
+            label = None
+            opening = closing = None
+            closing_stock_value = None                  
+
+            if period != "all":
+                # outer join can leave bucket NULL when no movement fell in this period
+                bucket_val = row.bucket if row.bucket is not None else start_date
+                label = str(bucket_val.date()) if period == "day" else str(bucket_val)
+
+                if include_balance:
+                    opening = opening_by_variant.get(row.variant_id, 0)
+                    closing = opening + qty_in - qty_out
+                    opening_by_variant[row.variant_id] = closing
+
+                    price = row.price or Decimal(0)      
+                    closing_stock_value = closing * price  
+                    total_closing_stock_value += closing_stock_value 
+
+
+
+
+            buckets.append(
+                StockMovementReportBucket(
+                    period_label=label,
+                    category_id=row.category_id,
+                    category_name=row.category_name,
+                    product_id=row.product_id,
+                    product_name=row.name,
+                    product_description=row.descriptions,
+                    variant_id=row.variant_id,
+                    variant_sku=row.sku,
+                    variant_specs=row.specs,
+                    price=row.price,
+                    qty_in=qty_in,
+                    qty_out=qty_out,
+                    net_change=qty_in - qty_out,
+                    movement_count=row.movement_count,
+                    value_in=value_in,
+                    value_out=value_out,
+                    net_value=value_in - value_out,
+                    opening_balance=opening,
+                    closing_balance=closing,
+                    closing_stock_value=closing_stock_value,
+                )
+            )
+
+        return StockMovementReportResponse(
+            period=period,
+            category_id=category_id,
+            buckets=buckets,
+            total_qty_in=total_in,
+            total_qty_out=total_out,
+            total_net_change=total_in - total_out,
+            total_value_in=total_value_in,
+            total_value_out=total_value_out,
+            total_net_value=total_value_in - total_value_out,
+            total_closing_stock_value=total_closing_stock_value if include_balance and period != "all" else None,  
+        )
+
+
 
 
     async def get_by_id(
@@ -624,12 +758,18 @@ class StockMovementService:
             "company_id":       company_id,
             "opening_balance":  opening_balance,
             "balance_quantity": new_balance,
+            "unit_price": data.unit_price or variant.price
         })
-        # await self.variant_repo.update(variant, data.qty_in - data.qty_out)
+
+
         await self.variant_repo.update(variant, {"stock_quantity": new_balance})
         return movement
-    
 
+
+
+
+
+    
     async def deletes(self, movement_id: int, company_id: int) -> dict:
         obj = await self.get_by_id(movement_id, company_id)
         variant = await self.variant_repo.get_by_id_only(obj.variant_id)
@@ -676,6 +816,9 @@ async def get_stock_service(
 # INVOICE SERVICE
 # ===========================================================================
 
+
+
+
 class InvoiceService:
     def __init__(
             self, 
@@ -683,11 +826,15 @@ class InvoiceService:
             repo:     InvoiceRepository,
             variant_repo: ProductVariantRepository,
             invoice_attach_repo: InvoiceAttachmentRepository,
+            quotation_repo: QuotationRepository, 
+            staff_repo: StaffRepository,
             redis_client: redis.Redis,
             ):
             self.repo         = repo
             self.variant_repo = variant_repo
             self.invoice_attach_repo = invoice_attach_repo
+            self.quotation_repo = quotation_repo
+            self.staff_repo      = staff_repo
             self.notify       = NotificationService(
                 db             = db,
                 redis_client  = redis_client,
@@ -721,11 +868,11 @@ class InvoiceService:
     # -----------------------------------------------------------------------
     # GET by user_id
     # -----------------------------------------------------------------------
-    async def create(self, data: InvoiceCreate, company_id: int):
+    async def create(self, data: InvoiceCreate, company_id: int, staff_id: int):
         invoice = await self.repo.create({
             "company_id":   company_id,
             "customer_id":  data.customer_id,
-            "staff_id":     data.staff_id,
+            "staff_id":     staff_id,
             "total_amount": data.total_amount,
             "discount":     data.discount,
             "tax":          data.tax,
@@ -751,6 +898,112 @@ class InvoiceService:
                 )
 
         return await self.repo.commit_and_refresh(invoice)
+
+
+
+    # -----------------------------------------------------------------------
+    # CREATE invoice from an accepted quotation
+    # -----------------------------------------------------------------------
+    # -----------------------------------------------------------------------
+
+
+    async def create_from_quotation(
+            self, quotation_id: int, company_id: int, staff_id: int,
+            payment_type: str | None = None,
+        ):
+            quotation = await self.quotation_repo.get_by_id(quotation_id, company_id)
+            if not quotation:
+                raise HTTPException(status_code=404, detail="Quotation not found")
+            if quotation.invoice_id is not None:
+                raise HTTPException(status_code=400, detail="Quotation already converted to an invoice")
+            if quotation.status != QuotationStatus.accepted:
+                raise HTTPException(status_code=400, detail="Only accepted quotations can be converted")
+            if not quotation.items:
+                raise HTTPException(status_code=400, detail="Quotation has no items to convert")
+
+
+
+            invoice = await self.repo.create({
+                "company_id":   company_id,
+                "customer_id":  quotation.customer_id,
+                "staff_id":     staff_id,
+                "total_amount": quotation.total_amount,
+                "discount":     quotation.discount,
+                "tax":          quotation.tax,
+                "payment_type": payment_type,
+            })
+
+
+
+            for qi in quotation.items:
+                item_data = {
+                    "company_id":   company_id,
+                    "invoice_id":   invoice.invoice_id,
+                    "item_name":    qi.item_name,
+                    "size":         qi.size,
+                    "pages":        qi.pages,
+                    "print_side":   qi.print_side,
+                    "color_spec":   qi.color_spec,
+                    "paper_cover":  qi.paper_cover,
+                    "paper_inside": qi.paper_inside,
+                    "finishing":    qi.finishing,
+                    "quantity":     qi.quantity,
+                    "unit_price":   qi.unit_price,
+                    "total_price":  qi.total_price,
+                }
+
+
+                product_id = getattr(qi, "product_id", None)
+                variant_id = getattr(qi, "variant_id", None)
+
+
+                if product_id is not None:
+                    item_data["product_id"] = product_id
+
+
+                if variant_id is not None:
+                    item_data["variant_id"] = variant_id
+
+
+                await self.repo.create_item(item_data)
+                if variant_id:
+                    variant = await self.variant_repo.get_by_id_only(variant_id)
+                    if variant:
+                        await self.variant_repo.update(
+                            variant,
+                            {"stock_quantity": variant.stock_quantity - qi.quantity},
+                        )
+
+
+            await self.quotation_repo.update(quotation, {"invoice_id": invoice.invoice_id})
+            result = await self.repo.commit_and_refresh(invoice)
+
+
+
+
+            if quotation.staff_id:
+                staff = await self.staff_repo.get_by_id(quotation.staff_id, company_id)
+                if staff:
+                    await self.notify.send(
+                        company_id     = company_id,
+                        user_id        = staff.user_id,
+                        title          = "Quotation converted to invoice",
+                        message        = (
+                            f"Quotation {quotation.ref_number} has been converted to "
+                            f"Invoice #{result.invoice_id}. Total amount: {result.total_amount}."
+                        ),
+                        notif_type     = "success",
+                        reference_id   = result.invoice_id,
+                        reference_type = "invoice",
+                    )
+            return result
+
+
+
+    
+
+
+
 
 
 
@@ -843,6 +1096,8 @@ async def get_Invoice_service(
         repo         = InvoiceRepository(db),
         variant_repo = ProductVariantRepository(db),
         invoice_attach_repo = InvoiceAttachmentRepository(db),
+        quotation_repo = QuotationRepository(db),  
+        staff_repo      = StaffRepository(db),  
         redis_client = redis_client,
     )
 
@@ -941,6 +1196,9 @@ def _fill_by_bucket(rows: list[dict], value_key: str, labels: list[datetime]) ->
     
 
 
+
+
+
 class DashboardService:
     def __init__(self, db: AsyncSession, repo: DashboardRepository, redis_client: redis.Redis | None = None):
         self.db=db
@@ -957,8 +1215,6 @@ class DashboardService:
         stock_totals = await self.repo.get_stock_in_out_totals(company_id)
         current_stock = await self.repo.get_current_stock_total(company_id)
         stock_value   = await self.repo.get_total_stock_value(company_id)
-
-
 
         revenue_series = _fill_series(revenue_rows, "day", "total", days)
         stock_series = _fill_series(stock_rows, "day", "net", days)
@@ -998,6 +1254,7 @@ class DashboardService:
                 "spark": revenue_series,
             },
         }
+
 
     
     async def get_report(self, company_id: int, period: ReportPeriod) -> dict:
@@ -1054,6 +1311,12 @@ class DashboardService:
             await self.redis_client.set(cache_key, json.dumps(result), ex=ttl)
 
         return result
+    
+
+
+
+
+
 
 
 

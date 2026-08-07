@@ -19,6 +19,7 @@ from .refresh_token import  RefreshToken
 from .CompanyStatusHistory import CompanyStatusHistory
 from .quotations import Quotation
 from .quotations import QuotationItem
+from .permission import Permission,  RolePermission
 
 __all__ = [
     "Role", "Department", "User", "Company", "RefreshToken", "CompanyStatusHistory",
@@ -29,4 +30,5 @@ __all__ = [
     "Invoice", "InvoiceItem", "InvoiceAttachment",
     "ChatGroup", "ChatGroupMember", "ChatMessage", 
     "Quotation","QuotationItem",
+    "Permission", "RolePermission"
 ]

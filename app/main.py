@@ -7,7 +7,8 @@ from app.models import *
 from app.api.v1.routers import api_router   
 from app.db.redis import connect_redis, disconnect_redis, check_redis
 from app.db.session import AsyncSessionLocal
-from app.seed.seed import seed_data
+from app.seed import seed_permissions
+# from app.seed.seed import seed_data
 from app.core.config import settings
 from app.core.rate_limit import ip_limiter
 from app.core.logger import logger
@@ -43,7 +44,10 @@ async def lifespan(app: FastAPI):
     logger.info("Server starting...")
     if settings.ENVIRONMENT == "development":
         async with AsyncSessionLocal() as db:
-            await seed_data(db)
+
+            await seed_permissions(db)
+
+
     await connect_redis()
     redis_ok = await check_redis()
     if redis_ok:

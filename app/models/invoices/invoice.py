@@ -22,13 +22,10 @@ class Invoice(Base):
     tax:          Mapped[float]         = mapped_column(Numeric(10, 2), default=0)
     payment_type: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     created_at:   Mapped[datetime]      = mapped_column(DateTime, server_default=func.now(), nullable=False)
-
     # Relationships
     company:     Mapped["Company"]               = relationship("Company",  back_populates="invoices")
     customer:    Mapped[Optional["Customer"]]    = relationship("Customer", back_populates="invoices")
     staff:       Mapped[Optional["Staff"]]       = relationship("Staff",    back_populates="invoices")
     items:       Mapped[list["InvoiceItem"]]     = relationship("InvoiceItem",       back_populates="invoice", cascade="all, delete-orphan")
     attachments: Mapped[list["InvoiceAttachment"]] = relationship("InvoiceAttachment", back_populates="invoice", cascade="all, delete-orphan")
-
-
     quotations:  Mapped[list["Quotation"]] = relationship("Quotation", back_populates="invoices", cascade="all, delete-orphan")

@@ -77,15 +77,27 @@ class AttendanceSettings(Base):
         default=480,
     )
 
+    # ─────────────────────────────────────────────
+    # Timezone (NEW — fixes TypeError on construction)
+    # ─────────────────────────────────────────────
+
+    timezone = Column(
+        String,
+        nullable=False,
+        default="Asia/Phnom_Penh",
+    )
+
+    
+
     created_at = Column(
-    TIMESTAMP(timezone=True),
-    default=cambodia_now,
+        TIMESTAMP(timezone=True),
+        default=cambodia_now,
     )
 
     updated_at = Column(
-    TIMESTAMP(timezone=True),
-    default=cambodia_now,
-    onupdate=cambodia_now,
+        TIMESTAMP(timezone=True),
+        default=cambodia_now,
+        onupdate=cambodia_now,
     )
 
     # ─────────────────────────────────────────────

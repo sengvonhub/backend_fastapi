@@ -1,5 +1,5 @@
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
-from typing import Optional, List, Dict, Any
+from typing import Literal, Optional, List, Dict, Any
 from datetime import datetime, date, time
 from decimal import Decimal
 from enum import Enum
@@ -59,9 +59,14 @@ class MovementTypeEnum(str, Enum):
     adjustment  = "adjustment"
     purchase    = "purchase"
     sale        = "sale"
-    return_     = "return"
+    return_in   = "return_in"     
+    return_out  = "return_out"    
     transfer    = "transfer"
     damage      = "damage"
+    OPENING = "opening"
+
+
+
 
 
 class UserStatus(str, Enum):
@@ -281,6 +286,9 @@ class UserUpdate(BaseModel):
         "from_attributes": True
     }
 
+
+
+
 class TokenResponse(BaseModel):
     access_token: str
     token_type:   str  = "bearer"
@@ -291,6 +299,19 @@ class TokenResponse(BaseModel):
 # ROLE SCHEMAS
 # ============================================================================
 
+
+
+
+class RolePermissionsUpdate(BaseModel):
+    permission_codes: list[str]
+
+class PermissionSimple(BaseModel):
+    permission_id: int
+    code: str
+    model_config = ConfigDict(from_attributes=True)
+
+
+
 class RoleBase(BaseModel):
     role_name: str = Field(..., min_length=2, max_length=100)
 
@@ -298,6 +319,9 @@ class RoleBase(BaseModel):
 
 class RoleCreate(RoleBase):
     company_id: int
+    permission_codes: list[str] = []
+
+    
 
 class RoleUpdate(BaseModel):
     role_name: Optional[str] = Field(None, min_length=2, max_length=100)
@@ -307,6 +331,7 @@ class RoleResponse(BaseModel):
     role_id: int
     role_name: str
     company_id: int
+    permissions: list[PermissionSimple] = []
 
     class Config:
         from_attributes = True
@@ -355,6 +380,11 @@ class UserSimple(BaseModel):
 
 
 # ✅ MOVED UP — must be before UserResponse
+
+
+
+
+
 class StaffBase(BaseModel):
     user_id:       Optional[int] = None
     staff_role_id: Optional[int] = None
@@ -364,6 +394,13 @@ class StaffBase(BaseModel):
     address:       Optional[str] = None
     email:         Optional[EmailStr] = None
     phone:         Optional[str] = Field(None, pattern=r"^\+?[0-9]{7,20}$")
+
+
+
+
+
+
+
 
 
 class StaffResponse(StaffBase):
@@ -737,13 +774,54 @@ class ProductVariantUpdate(BaseModel):
     stock_quantity: Optional[int]     = Field(None, ge=0)
 
 
+
+
+class StockMovementReportBucket(BaseModel):
+    period_label:   Optional[str]
+    category_id:    Optional[int]
+    category_name:  Optional[str]
+    product_id:     Optional[int]
+    product_name:   Optional[str]
+    product_description:   Optional[str] = None
+    variant_id:     Optional[int]
+    variant_sku:    Optional[str]
+    variant_specs:  Optional[dict] = None
+    price:          Optional[Decimal] = None
+    qty_in:         int
+    qty_out:        int
+    net_change:     int
+    movement_count: int
+    value_in:            Decimal        
+    value_out:           Decimal      
+    net_value:           Decimal
+    opening_balance:     Optional[int] = None
+    closing_balance:     Optional[int] = None
+    closing_stock_value: Optional[Decimal] = None
+
+
+
+
+class StockMovementReportResponse(BaseModel):
+    period:            Literal["day", "week", "month", "year", "all"]
+    category_id:       Optional[int] = None
+    buckets:           list[StockMovementReportBucket]
+    total_qty_in:      int
+    total_qty_out:     int
+    total_net_change:  int
+    total_value_in:    Decimal    = Decimal(0) 
+    total_value_out:   Decimal    = Decimal(0)
+    total_net_value:   Decimal    = Decimal(0)
+    total_closing_stock_value: Optional[Decimal] = None
+
+
+    
+
 class ProductVariantResponse(ProductVariantBase):
     variant_id:  int
     product_id:  int
     created_at:  datetime
     updated_at:  Optional[datetime] = None
     images:      list["ProductImageResponse"] = []  # variant-level images
-
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -817,10 +895,6 @@ class ProductResponse(ProductBase):
 
 
 
-
-
-
-
 # ============================================================================
 # STOCK MOVEMENT SCHEMAS
 # ============================================================================
@@ -834,6 +908,7 @@ class StockMovementBase(BaseModel):
     date:             date
     reference_id:     Optional[int]     = None
     opening_balance:  Optional[float]   = None
+    unit_price:       Optional[float]   = None
 
 
 class StockMovementCreate(StockMovementBase):
@@ -993,8 +1068,16 @@ class CustomerResponse(BaseModel):
 
 
 class InvoiceItemBase(BaseModel):
-    product_id:  int
-    variant_id:  int
+    product_id:  Optional[int] = None
+    variant_id:  Optional[int] = None
+    item_name:    Optional[str] = None
+    size:         Optional[str] = None
+    pages:        Optional[int] = None
+    print_side:   Optional[str] = None
+    color_spec:   Optional[str] = None
+    paper_cover:  Optional[str] = None
+    paper_inside: Optional[str] = None
+    finishing:    Optional[str] = None
     quantity:    int     = Field(..., gt=0)
     unit_price:  Decimal = Field(..., ge=0)
     total_price: Optional[Decimal] = None
@@ -1017,7 +1100,6 @@ class InvoiceItemResponse(InvoiceItemBase):
 
 class InvoiceBase(BaseModel):
     customer_id:  Optional[int]             = None
-    staff_id:     Optional[int]             = None
     total_amount: Optional[Decimal]         = Field(None, ge=0)
     discount:     Decimal                   = Field(default=Decimal("0"), ge=0)
     tax:          Decimal                   = Field(default=Decimal("0"), ge=0)
@@ -1031,6 +1113,15 @@ class InvoiceUpdate(BaseModel):
     discount:     Optional[Decimal]         = Field(None, ge=0)
     tax:          Optional[Decimal]         = Field(None, ge=0)
     payment_type: Optional[PaymentTypeEnum] = None
+
+
+
+class InvoiceFromQuotation(BaseModel):
+    quotation_id: int
+    payment_type: Optional[PaymentTypeEnum] = None
+
+
+
 
 
 
@@ -1048,6 +1139,7 @@ class InvoiceAttachmentResponse(BaseModel):
 class InvoiceResponse(InvoiceBase):
     invoice_id:  int
     company_id:  int
+    staff_id:    Optional[int] = None
     items:       list[InvoiceItemResponse]       = []
     attachments: list[InvoiceAttachmentResponse] = []
     created_at:  datetime

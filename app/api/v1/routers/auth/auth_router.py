@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, status, Request, HTTPException, Cookie, Response
 from typing import Optional
+from app.core.permission import Permissions
 from app.schemas.schema import (LoginRequest,RegisterRequest, 
                                 RegisterResponse,
                                 ResetPasswordRequest, 
@@ -7,7 +8,7 @@ from app.schemas.schema import (LoginRequest,RegisterRequest,
                                 RefreshRequest,
                                 UpdateUserRequest
 )
-from app.utils.auth import require_superuser, require_admin, require_login
+from app.utils.auth import require_permission, require_superuser, require_admin, require_login
 from app.services.auth.auth_service import AuthService, get_auth_service
 from app.utils.helper import is_mobile, set_refresh_cookie
 from app.core.rate_limit import ip_limiter
@@ -18,6 +19,8 @@ router = APIRouter(prefix="/auth", tags=["Auth"])
 # REGISTER
 # =============================================================================
 
+
+
 @router.post(
     "/register",
     response_model=RegisterResponse,
@@ -27,7 +30,7 @@ router = APIRouter(prefix="/auth", tags=["Auth"])
 async def register(
     body:         RegisterRequest,
     request:      Request,
-    current_user: dict        = Depends(require_superuser),
+    current_user: dict        = Depends(require_permission(Permissions.MANAGE_USERS)),
     service:      AuthService = Depends(get_auth_service),
 ):
     return await service.register(
@@ -37,11 +40,18 @@ async def register(
         client_ip       = request.client.host,
 )
 
+
+
+
 # =============================================================================
 # LOGIN ✅ web → cookie, mobile → body
 # =============================================================================
 
-@router.post("/login", summary="Login — returns access + refresh token")
+
+@router.post(
+        "/login", 
+        summary="Login — returns access + refresh token"
+    )
 @ip_limiter.limit("5/minute")
 async def login(
     request: Request,
@@ -49,7 +59,10 @@ async def login(
     response: Response,
     service: AuthService = Depends(get_auth_service),
 ):
-    tokens = await service.login(body=body, client_ip=request.client.host)
+    tokens = await service.login(
+        body=body, 
+        client_ip=request.client.host
+    )
     mobile = is_mobile(request)
     if mobile:
         return {
@@ -111,7 +124,6 @@ async def refresh(
         }
 
     else:
-        # Web → rotate cookie, access_token in body only
         set_refresh_cookie(response, tokens["refresh_token"])
         print("test")
         return {
@@ -120,12 +132,8 @@ async def refresh(
             "token_type":        "bearer",
             
         }
-    
-
 
     
-    
-
 # =============================================================================
 # LOGOUT
 # =============================================================================
@@ -147,6 +155,9 @@ async def logout(
         response.delete_cookie("refresh_token", path="/auth/refresh")
     return result
 
+
+
+
 # =============================================================================
 # GET USER BY ID
 # =============================================================================
@@ -158,13 +169,15 @@ async def logout(
 )
 async def get_user(
     user_id:      int,
-    current_user: dict        = Depends(require_admin),
+    current_user: dict        = Depends(require_permission(Permissions.VIEW_USERS)),
     service:      AuthService = Depends(get_auth_service),
 ):
     return await service.get_user_by_id(
         user_id    = user_id,
         company_id = current_user["company_id"],
     )
+
+
 
 
 # =============================================================================
@@ -178,7 +191,7 @@ async def get_user(
 )
 async def get_user_by_username(
     username:     str,
-    current_user: dict        = Depends(require_admin),
+    current_user: dict        = Depends(require_permission(Permissions.VIEW_USERS)),
     service:      AuthService = Depends(get_auth_service),
 ):
     return await service.get_user_by_username(username)
@@ -194,7 +207,7 @@ async def get_user_by_username(
     summary="[Admin] List all users",
 )
 async def get_all_users(
-    current_user: dict        = Depends(require_admin),
+    current_user: dict        = Depends(require_permission(Permissions.VIEW_USERS)),
     service:      AuthService = Depends(get_auth_service),
 ):
     return await service.get_all_users(company_id=current_user["company_id"])
@@ -213,7 +226,7 @@ async def update_user(
     user_id: int,
     data: UpdateUserRequest,
     request: Request,
-    current_user: dict = Depends(require_admin),
+    current_user: dict = Depends(require_permission(Permissions.MANAGE_USERS)),
     service: AuthService = Depends(get_auth_service),
 ):
     return await service.update_user(
@@ -236,7 +249,7 @@ async def update_user(
 async def deactivate_user(
     user_id:      int,
     request:      Request,
-    current_user: dict        = Depends(require_superuser),
+    current_user: dict        = Depends(require_permission(Permissions.MANAGE_USERS)),
     service:      AuthService = Depends(get_auth_service),
 ):
     return await service.deactivate_user(
@@ -251,6 +264,8 @@ async def deactivate_user(
 # ACTIVATE USER
 # =============================================================================
 
+
+
 @router.post(
     "/users/{user_id}/activate",
     response_model=RegisterResponse,
@@ -259,7 +274,7 @@ async def deactivate_user(
 async def activate_user(
     user_id:      int,
     request:      Request,
-    current_user: dict        = Depends(require_superuser),
+    current_user: dict        = Depends(require_permission(Permissions.MANAGE_USERS)),
     service:      AuthService = Depends(get_auth_service),
 ):
     return await service.update_user(
@@ -301,7 +316,7 @@ async def reset_password(
     user_id:      int,
     body:         ResetPasswordRequest,
     request:      Request,
-    current_user: dict        = Depends(require_admin),
+    current_user: dict        = Depends(require_permission(Permissions.MANAGE_USERS)),
     service:      AuthService = Depends(get_auth_service),
 ):
     return await service.reset_password(

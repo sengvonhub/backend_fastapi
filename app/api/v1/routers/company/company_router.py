@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status, UploadFile, File, Form, BackgroundTasks
+from fastapi import APIRouter, Depends, status, UploadFile, File, Form, BackgroundTasks, Request
 from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.schemas.company import (
@@ -10,16 +10,18 @@ from app.schemas.company import (
     UpdatePlanRequest,
     UpdateStatusRequest,
     CompanyStatusHistoryResponse,
+    CompanyRegisterRequest,
+    CompanyRegisterResponse,
 )
 from app.services.company.company_service import CompanyService
 from app.dependencies import get_db
 from app.utils.auth import require_login, require_superuser, require_admin
+from app.core.rate_limit import ip_limiter
 
 company_router = APIRouter(
     prefix="/companies",
     tags=["Companies"],
 )
-
 
 
 def get_company_service(
@@ -32,6 +34,24 @@ def get_company_service(
 # SPECIFIC ROUTES FIRST (before any /{company_id} dynamic routes)
 # ===========================================================================
 
+@company_router.post(
+    "/register",
+    response_model=CompanyRegisterResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Public — register a new company + owner account",
+)
+@ip_limiter.limit("100/minute")
+async def register_company(
+    body:    CompanyRegisterRequest,
+    request: Request,
+    service: CompanyService = Depends(get_company_service),
+):
+    return await service.register(body, client_ip=request.client.host)
+
+
+# ///////////////////////////////////////////////////////////////////////////
+# 
+# ///////////////////////////////////////////////////////////////////////////
 
 @company_router.get(
     "/",
@@ -45,8 +65,9 @@ async def list_companies(
     return await service.get_all()
 
 
-
-
+# ///////////////////////////////////////////////////////////////////////////
+# 
+# ///////////////////////////////////////////////////////////////////////////
 
 @company_router.post(
     "/",
@@ -60,9 +81,6 @@ async def create_company(
     service:      CompanyService = Depends(get_company_service),
 ):
     return await service.create(data)
-
-
-
 
 
 # ===========================================================================
@@ -82,7 +100,9 @@ async def get_settings(
     return await service.get_settings(company_id)
 
 
-
+# ///////////////////////////////////////////////////////////////////////////
+# 
+# ///////////////////////////////////////////////////////////////////////////
 
 @company_router.get(
     "/{company_id}/stats",
@@ -97,9 +117,9 @@ async def get_stats(
     return await service.get_stats(company_id)
 
 
-
-
-
+# ///////////////////////////////////////////////////////////////////////////
+# 
+# ///////////////////////////////////////////////////////////////////////////
 
 
 @company_router.patch(
@@ -116,7 +136,9 @@ async def update_plan(
     return await service.update_plan(company_id, data)
 
 
-
+# ///////////////////////////////////////////////////////////////////////////
+# 
+# ///////////////////////////////////////////////////////////////////////////
 
 @company_router.patch(
     "/{company_id}/status",
@@ -136,14 +158,9 @@ async def update_status(
     )
 
 
-
-
-
 # ===========================================================================
 # /{company_id} DYNAMIC ROUTES LAST
 # ===========================================================================
-
-
 
 @company_router.get(
     "/{company_id}",
@@ -152,33 +169,32 @@ async def update_status(
 )
 async def get_company(
     company_id:   int,
-    current_user: dict = Depends(require_login),  
+    current_user: dict = Depends(require_login),
     service:      CompanyService = Depends(get_company_service),
 ):
     return await service.get_by_id(company_id)
 
 
+# ///////////////////////////////////////////////////////////////////////////
+# 
+# ///////////////////////////////////////////////////////////////////////////
+
 @company_router.patch(
     "/{company_id}",
-    response_model=CompanyResponse,  
+    response_model=CompanyResponse,
     summary="[Admin] Update company info",
 )
 async def update_company(
     company_id:   int,
-    data:         CompanyUpdate,    
+    data:         CompanyUpdate,
     current_user: dict           = Depends(require_admin),
     service:      CompanyService = Depends(get_company_service),
 ):
     return await service.update(company_id, data)
 
-
-
-
-
-# Endpoint 2 — upload logo/banner only (FormData)
-
-
-
+# ///////////////////////////////////////////////////////////////////////////
+# 
+# ///////////////////////////////////////////////////////////////////////////
 
 @company_router.patch(
     "/{company_id}/media",
@@ -203,8 +219,9 @@ async def update_company_media(
     )
 
 
-
-
+# ///////////////////////////////////////////////////////////////////////////
+# 
+# ///////////////////////////////////////////////////////////////////////////
 
 @company_router.delete(
     "/{company_id}",
@@ -213,6 +230,7 @@ async def update_company_media(
 async def delete_company(
     company_id:       int,
     background_tasks: BackgroundTasks,
+    current_user:     dict = Depends(require_superuser),   # ← fixed: was missing auth entirely
     service:          CompanyService = Depends(get_company_service),
 ):
     return await service.delete(company_id, background_tasks)
