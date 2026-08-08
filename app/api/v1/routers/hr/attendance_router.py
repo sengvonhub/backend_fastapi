@@ -39,14 +39,14 @@ async def scan_authenticate(
     current_user: dict         = Depends(require_login),
     db:           AsyncSession = Depends(get_db),
 ):
+    
     staff_id = current_user.get("staff_id")
     if not staff_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only staff accounts can authenticate for scanning.",
         )
-
-        
+      
     return await scan_auth_service(
         password = data.password,
         staff_id = staff_id,

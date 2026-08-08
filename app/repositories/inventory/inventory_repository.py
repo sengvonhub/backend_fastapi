@@ -779,6 +779,63 @@ class DashboardRepository:
             .order_by("day")
         )
         return [{"day": row.day, "total": float(row.total)} for row in r.all()]
+
+
+    async def get_daily_revenue_range(self, company_id: int, start: datetime, end: datetime) -> list[dict]:
+        r = await self.db.execute(
+            select(
+                cast(Invoice.created_at, Date).label("day"),
+                func.coalesce(func.sum(Invoice.total_amount), 0).label("total"),
+            )
+            .where(
+                Invoice.company_id == company_id,
+                Invoice.created_at >= start,
+                Invoice.created_at < end,
+            )
+            .group_by("day")
+            .order_by("day")
+        )
+        return [{"day": row.day, "total": float(row.total)} for row in r.all()]
+
+
+    async def get_daily_expenses_range(self, company_id: int, start: datetime, end: datetime) -> list[dict]:
+        r = await self.db.execute(
+            select(
+                cast(StockMovement.date, Date).label("day"),
+                func.coalesce(
+                    func.sum(StockMovement.qty_out * func.coalesce(StockMovement.unit_price, 0)), 0
+                ).label("total"),
+            )
+            .where(
+                StockMovement.company_id == company_id,
+                StockMovement.is_deleted == False,
+                StockMovement.date >= start,
+                StockMovement.date < end,
+            )
+            .group_by("day")
+            .order_by("day")
+        )
+        return [{"day": row.day, "total": float(row.total)} for row in r.all()]
+
+
+    async def get_daily_stock_net_range(self, company_id: int, start: datetime, end: datetime) -> list[dict]:
+            r = await self.db.execute(
+                select(
+                    cast(StockMovement.date, Date).label("day"),
+                    func.coalesce(
+                        func.sum(StockMovement.qty_in - StockMovement.qty_out), 0
+                    ).label("net"),
+                )
+                .where(
+                    StockMovement.company_id == company_id,
+                    StockMovement.is_deleted == False,
+                    StockMovement.date >= start,
+                    StockMovement.date < end,
+                )
+                .group_by("day")
+                .order_by("day")
+            )
+            return [{"day": row.day, "net": float(row.net)} for row in r.all()]
     
 
 
@@ -843,6 +900,38 @@ class DashboardRepository:
         
 
 
+    async def get_all_time_expenses(self, company_id: int) -> float:
+        r = await self.db.execute(
+            select(
+                func.coalesce(
+                    func.sum(StockMovement.qty_out * func.coalesce(StockMovement.unit_price, 0)), 0
+                )
+            ).where(
+                StockMovement.company_id == company_id,
+                StockMovement.is_deleted == False,
+            )
+        )
+        return float(r.scalar() or 0)
+
+
+    async def get_all_time_revenue(self, company_id: int) -> float:
+        r = await self.db.execute(
+            select(func.coalesce(func.sum(Invoice.total_amount), 0))
+            .where(Invoice.company_id == company_id)
+        )
+        return float(r.scalar() or 0)
+
+
+    async def get_all_time_stock_net(self, company_id: int) -> float:
+        r = await self.db.execute(
+            select(
+                func.coalesce(func.sum(StockMovement.qty_in - StockMovement.qty_out), 0)
+            ).where(
+                StockMovement.company_id == company_id,
+                StockMovement.is_deleted == False,
+            )
+        )
+        return float(r.scalar() or 0)
 
 
 
@@ -862,16 +951,17 @@ class DashboardRepository:
     #===========================================================================
     # 
     # =========================================================================
-        
-
+    
 
     async def get_daily_expenses(self, company_id: int, days: int = 11) -> list[dict]:
-        """Placeholder: sums qty_out as a stand-in for expense trend until a real Expense model exists."""
+        """Sums qty_out × unit_price (cost of goods shipped out) as a stand-in for expense trend until a real Expense model exists."""
         since = datetime.utcnow() - timedelta(days=days - 1)
         r = await self.db.execute(
             select(
                 cast(StockMovement.date, Date).label("day"),
-                func.coalesce(func.sum(StockMovement.qty_out), 0).label("total"),
+                func.coalesce(
+                    func.sum(StockMovement.qty_out * func.coalesce(StockMovement.unit_price, 0)), 0
+                ).label("total"),
             )
             .where(
                 StockMovement.company_id == company_id,
@@ -882,8 +972,9 @@ class DashboardRepository:
             .order_by("day")
         )
         return [{"day": row.day, "total": float(row.total)} for row in r.all()]
-    
 
+
+    
     #===========================================================================
     # 
     # =========================================================================

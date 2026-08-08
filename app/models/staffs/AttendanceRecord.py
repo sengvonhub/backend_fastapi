@@ -19,7 +19,12 @@ class AttendanceRecord(Base):
     staff_id:       Mapped[int]           = mapped_column(Integer, ForeignKey("staff.staff_id",  ondelete="CASCADE"),       nullable=False)
     date:           Mapped[date]          = mapped_column(Date,    nullable=False)
     check_in_time:  Mapped[Optional[time]]= mapped_column(Time,    nullable=True)
+
+
+    
     check_out_time: Mapped[Optional[time]]= mapped_column(Time,    nullable=True)
+
+
     # created_at:     Mapped[datetime]      = mapped_column(DateTime, server_default=func.now(), nullable=False)
 
 

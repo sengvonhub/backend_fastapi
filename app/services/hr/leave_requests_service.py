@@ -246,7 +246,24 @@ class LeaveRequestService:
                 reference_type = "leave_request",
             )
 
-        # ✅ notify all managers
+
+
+        staff = await self.staff_repo.get_by_id(leave.staff_id, company_id)
+        start_date = format_time_for_message(leave.start_date)
+        end_date = format_time_for_message(leave.end_date)
+        if staff:
+            await self.notif.send(
+                company_id=company_id,
+                user_id=staff.user_id,
+                title="Leave approved",
+                message=f"Your leave from {start_date} to {end_date} has been approved.",
+                notif_type="success",
+                reference_id=leave_id,
+                reference_type="leave_request",
+            )
+
+
+
         staff_name = leave.staff.name if leave.staff else "Staff"
         await self._notify_managers(
             company_id   = company_id,
@@ -256,6 +273,9 @@ class LeaveRequestService:
             reference_id = leave_id,
         )
         return self._to_response(updated)
+
+
+
 
     # =========================================================================
     # REJECT — notify staff + all managers

@@ -54,7 +54,7 @@ class NotificationService:
         if self.redis_client:
             await publish_notification(
                 redis_client = self.redis_client,
-                user_id      = user_id,
+                user_id           = user_id,
                 data         = {
                     "event":           "new_notification",
                     "notification_id": notif.notification_id,

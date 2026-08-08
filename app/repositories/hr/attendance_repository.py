@@ -207,13 +207,15 @@ class AttendanceRepository:
                 AttendanceRecord.date <  end,
             )
         elif year:
-            # ✅ filter by year only if month not provided
             query = query.where(
                 extract("year", AttendanceRecord.date) == year
             )
 
         result = await self.db.execute(query)
         return result.scalars().all()
+
+
+    
 
     # -----------------------------------------------------------------------
     # GET by date range
@@ -274,7 +276,7 @@ class AttendanceRepository:
         company_id: int,
         month:      int,
         year:       int,
-    ) -> dict:
+     ) -> dict:
         records = await self.get_by_staff_id(
             staff_id   = staff_id,
             company_id = company_id,
@@ -290,6 +292,6 @@ class AttendanceRepository:
             "month":           month,
             "year":            year,
             "total_present":   present,
-            "full_days":       len(full_days),
-            "incomplete_days": len(incomplete),
+            "checked_out":     len(full_days),
+            "still_in":        len(incomplete),
         }

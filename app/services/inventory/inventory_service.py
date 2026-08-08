@@ -1128,6 +1128,12 @@ def _pct_change(series: list[float]) -> float:
     return round(((series[-1] - series[0]) / abs(series[0])) * 100, 1)
 
 
+def _pct_change_totals(current_total: float, previous_total: float) -> float:
+    if previous_total == 0:
+        return 0.0 if current_total == 0 else None
+    return round(((current_total - previous_total) / abs(previous_total)) * 100, 1)
+
+
 
 
 
@@ -1204,22 +1210,42 @@ class DashboardService:
         self.db=db
         self.repo = repo
         self.redis_client = redis_client
-        
 
 
     async def get_state(self, company_id: int, days: int = 11) -> dict:
+        now = datetime.utcnow()
+        current_start = now - timedelta(days=days - 1)
+        previous_start = current_start - timedelta(days=days)
+        previous_end = current_start
 
         revenue_rows = await self.repo.get_daily_revenue(company_id, days)
-        stock_rows =  await self.repo.get_daily_stock_net(company_id, days)
+        stock_rows = await self.repo.get_daily_stock_net(company_id, days)
         expense_rows = await self.repo.get_daily_expenses(company_id, days)
         stock_totals = await self.repo.get_stock_in_out_totals(company_id)
         current_stock = await self.repo.get_current_stock_total(company_id)
-        stock_value   = await self.repo.get_total_stock_value(company_id)
+        stock_value = await self.repo.get_total_stock_value(company_id)
 
         revenue_series = _fill_series(revenue_rows, "day", "total", days)
         stock_series = _fill_series(stock_rows, "day", "net", days)
         expense_series = _fill_series(expense_rows, "day", "total", days)
+        
+        # ── previous-period totals for percent comparison ──────────────────
+        prev_revenue_rows = await self.repo.get_daily_revenue_range(company_id, previous_start, previous_end)
+        prev_stock_rows = await self.repo.get_daily_stock_net_range(company_id, previous_start, previous_end)
+        prev_expense_rows = await self.repo.get_daily_expenses_range(company_id, previous_start, previous_end)
 
+        prev_revenue_total = sum(row["total"] for row in prev_revenue_rows)
+        prev_stock_total = sum(row["net"] for row in prev_stock_rows)
+        prev_expense_total = sum(row["total"] for row in prev_expense_rows)
+
+        # ── all-time totals ─────────────────────────────────────────────────
+        all_time_revenue = await self.repo.get_all_time_revenue(company_id)
+        all_time_expenses = await self.repo.get_all_time_expenses(company_id)
+        all_time_stock_net = await self.repo.get_all_time_stock_net(company_id)
+
+        current_revenue_total = sum(revenue_series)
+        current_stock_total = sum(stock_series)
+        current_expense_total = sum(expense_series)
 
         return {
             "live_chat": {
@@ -1229,9 +1255,12 @@ class DashboardService:
             },
             "stock": {
                 "value": current_stock,
+                "current_period_value": current_stock_total,
+                "previous_period_value": prev_stock_total,
+                "all_time_value": all_time_stock_net,
                 "stock_in": stock_totals["total_in"],
                 "stock_out": stock_totals["total_out"],
-                "badge_pct": _pct_change(stock_series),
+                "badge_pct": _pct_change_totals(current_stock_total, prev_stock_total),
                 "sub": "current units",
                 "spark": stock_series,
             },
@@ -1242,19 +1271,24 @@ class DashboardService:
                 "spark": [0.0] * days,
             },
             "expenses": {
-                "value": sum(expense_series),
-                "badge_pct": _pct_change(expense_series),
+                "value": current_expense_total,
+                "current_period_value": current_expense_total,
+                "previous_period_value": prev_expense_total,
+                "all_time_value": all_time_expenses,
+                "badge_pct": _pct_change_totals(current_expense_total, prev_expense_total),
                 "sub": "vs last period",
                 "spark": expense_series,
             },
             "revenue": {
-                "value": sum(revenue_series),
-                "badge_pct": _pct_change(revenue_series),
+                "value": current_revenue_total,
+                "current_period_value": current_revenue_total,
+                "previous_period_value": prev_revenue_total,
+                "all_time_value": all_time_revenue,
+                "badge_pct": _pct_change_totals(current_revenue_total, prev_revenue_total),
                 "sub": "this period",
                 "spark": revenue_series,
             },
         }
-
 
     
     async def get_report(self, company_id: int, period: ReportPeriod) -> dict:

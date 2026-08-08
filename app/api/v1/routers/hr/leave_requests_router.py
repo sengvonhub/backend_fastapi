@@ -60,7 +60,7 @@ async def get_my_leaves(
     current_user: dict = Depends(require_login),
     service:      LeaveRequestService = Depends(get_leave_service),
 ):
-    staff_id = int(current_user.get("staff_id"))
+    staff_id = current_user.get("staff_id")
     if not staff_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

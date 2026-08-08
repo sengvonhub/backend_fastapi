@@ -35,6 +35,8 @@ from app.middleware import (
 )
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.websockets.ws_manager import start_redis_pubsub_listener
+
 # =============================================================================
 # LIFESPAN
 # =============================================================================
@@ -61,6 +63,7 @@ async def lifespan(app: FastAPI):
 
 
     pubsub_task = asyncio.create_task(start_chat_pubsub_listener(chat_handler))
+    notif_task = asyncio.create_task(start_redis_pubsub_listener())
     chat_task = asyncio.create_task(start_notification_pubsub_listener(notification_handler))
     logger.info("WebSocket listeners started")
 
@@ -68,6 +71,7 @@ async def lifespan(app: FastAPI):
 
     logger.info("Server shutting down...")
     pubsub_task.cancel()
+    notif_task.cancel()
     chat_task.cancel()
     try:
         await asyncio.gather(pubsub_task, chat_task)

@@ -68,11 +68,26 @@ class AttendanceService:
         longitude: str,
         company_id: int,
     ) -> dict:
+
+        
         staff_id = decode_scan_token(scan_token)
         if not office_qr_token:
            raise HTTPException(status_code=422, detail="office_qr_token is required")
+
+
+
+        
         decode_office_qr_token(office_qr_token)
         att_settings  = await self.settings_repo.get_by_company_id(company_id)
+
+        att_settings = await self.settings_repo.get_by_company_id(company_id)
+        if not att_settings:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Attendance settings not configured QR for this company. Please contact your administrator.",
+            )
+
+
         distance = validate_gps_at_office(
             latitude,
             longitude,
@@ -80,6 +95,9 @@ class AttendanceService:
             float(att_settings .office_longitude),
             att_settings .allowed_radius_meters,
         )
+
+
+
         now =  cambodia_now()
         today    = now.date()  
         existing = await self.repo.get_today_record(staff_id, company_id, today)
@@ -88,6 +106,9 @@ class AttendanceService:
                 status_code=status.HTTP_409_CONFLICT,
                 detail=f"Already checked in today at {existing.check_in_time}.",
             )
+
+
+        
         record = await self.repo.create_check_in(
             staff_id   = staff_id,
             company_id = company_id,
@@ -95,9 +116,13 @@ class AttendanceService:
             latitude   = str(latitude),
             longitude  = str(longitude),
         )
+
+
         staff      = await self.staff_repo.get_by_id(staff_id, company_id)
         staff_name = staff.name if staff else "Staff"
         formatted_time = format_time_for_message(record.check_in_time)
+
+
         if staff:
             await self.notif.send(
                 company_id     = company_id,
@@ -108,6 +133,8 @@ class AttendanceService:
                 reference_id   = record.attendance_id,
                 reference_type = "attendance",
             )
+
+
         if _is_late(
             record.check_in_time, 
             att_settings.office_open_time, 
@@ -145,7 +172,14 @@ class AttendanceService:
     # CHECK-OUT — notify staff
     # -----------------------------------------------------------------------
 
-    async def check_out(self, scan_token, office_qr_token, latitude, longitude, company_id):
+    async def check_out(
+            self, 
+            scan_token, 
+            office_qr_token, 
+            latitude, 
+            longitude, 
+            company_id
+        ):
 
         staff_id = decode_scan_token(scan_token)
         decode_office_qr_token(office_qr_token)
@@ -157,6 +191,8 @@ class AttendanceService:
             float(att_settings.office_longitude),
             att_settings.allowed_radius_meters,
         )
+
+
         now   = cambodia_now()
         today = now.date()
         record = await self.repo.get_today_record(staff_id, company_id, today)
@@ -167,11 +203,16 @@ class AttendanceService:
         if record.check_out_time:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT,
                                 detail=f"Already checked out today at {record.check_out_time}.")
+        
         record     = await self.repo.update_check_out(record=record, latitude=str(latitude),
                                                       longitude=str(longitude), company_id=company_id)
+
+        
         staff      = await self.staff_repo.get_by_id(staff_id, company_id)
         staff_name = staff.name if staff else "Staff"
-        formatted_time = format_time_for_message(record.check_in_time)
+        formatted_time = format_time_for_message(record.check_out_time)
+
+
 
         if staff:
             await self.notif.send(
@@ -181,6 +222,8 @@ class AttendanceService:
                 notif_type="success", reference_id=record.attendance_id, reference_type="attendance",
             )
 
+
+
         if _is_early(record.check_out_time, att_settings.office_close_time) and staff:
             await self.notif.send(
                 company_id=company_id, user_id=staff.user_id,
@@ -188,6 +231,8 @@ class AttendanceService:
                 message=f"You left at {record.check_out_time}, before closing time {att_settings.office_close_time}.",
                 notif_type="warning", reference_id=record.attendance_id, reference_type="attendance",
             )
+
+
             managers = await self.staff_repo.get_managers(company_id)
             for manager in managers:
                 await self.notif.send(
@@ -197,11 +242,16 @@ class AttendanceService:
                     notif_type="warning", reference_id=record.attendance_id, reference_type="attendance",
                 )
 
+
+
         return {
             "attendance":      record,
             "distance_meters": round(distance, 1),
             "message":         f"Check-out successful! ({distance:.0f}m from office)",
         }
+
+
+
 
     # -----------------------------------------------------------------------
     # GET MY ATTENDANCE
@@ -220,6 +270,7 @@ class AttendanceService:
             month      = month,
             year       = year,
         )
+
 
     # -----------------------------------------------------------------------
     # GET ALL
