@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, status, UploadFile, File, Form, BackgroundTasks, Request
 from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.core.permission import Permissions
 from app.schemas.company import (
     CompanyCreate,
     CompanyUpdate,
@@ -15,7 +16,7 @@ from app.schemas.company import (
 )
 from app.services.company.company_service import CompanyService
 from app.dependencies import get_db
-from app.utils.auth import require_login, require_superuser, require_admin
+from app.utils.auth import require_login, require_permission, require_superuser, require_admin
 from app.core.rate_limit import ip_limiter
 
 company_router = APIRouter(
@@ -187,7 +188,8 @@ async def get_company(
 async def update_company(
     company_id:   int,
     data:         CompanyUpdate,
-    current_user: dict           = Depends(require_admin),
+    current_user: dict = Depends(require_permission(Permissions.MANAGE_COMPANY)),
+
     service:      CompanyService = Depends(get_company_service),
 ):
     return await service.update(company_id, data)
@@ -234,3 +236,17 @@ async def delete_company(
     service:          CompanyService = Depends(get_company_service),
 ):
     return await service.delete(company_id, background_tasks)
+
+
+
+@company_router.get(
+    "/{company_id}/history",
+    response_model=list[CompanyStatusHistoryResponse],
+    summary="Get company status change history",
+)
+async def get_company_history(
+    company_id: int,
+    current_user: dict = Depends(require_permission(Permissions.VIEW_COMPANY)),
+    service: CompanyService = Depends(get_company_service),
+):
+    return await service.get_status_history(company_id)

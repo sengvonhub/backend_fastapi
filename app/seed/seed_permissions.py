@@ -24,6 +24,8 @@ ALL_PERMISSIONS = [
     Permissions.MANAGE_USERS,
     Permissions.VIEW_COMPANY,
     Permissions.MANAGE_COMPANY,
+    Permissions.MANAGE_ROLES, 
+    Permissions.MANAGE_DEPARTMENTS,
 ]
 
 DEFAULT_ROLE_PERMISSIONS = {

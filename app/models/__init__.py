@@ -19,6 +19,7 @@ from .refresh_token import  RefreshToken
 from .CompanyStatusHistory import CompanyStatusHistory
 from .quotations import Quotation
 from .quotations import QuotationItem
+from .quotations import QuotationItemPriceTier
 from .permission import Permission,  RolePermission
 
 __all__ = [
@@ -29,6 +30,6 @@ __all__ = [
     "Supplier", "Customer", "Category", "Product", "StockMovement" , "ProductImage",
     "Invoice", "InvoiceItem", "InvoiceAttachment",
     "ChatGroup", "ChatGroupMember", "ChatMessage", 
-    "Quotation","QuotationItem",
+    "Quotation","QuotationItem","QuotationItemPriceTier",
     "Permission", "RolePermission"
 ]

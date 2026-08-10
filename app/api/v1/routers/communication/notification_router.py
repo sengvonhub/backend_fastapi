@@ -8,6 +8,9 @@ notification_router = APIRouter(prefix="/notifications",tags=["Notifications"])
 # USER — own notifications
 # ===========================================================================
 
+
+
+
 @notification_router.get("/my", response_model=list[NotificationResponse], summary="Get my notifications")
 async def get_my_notifications(
     unread_only:  bool = Query(False),
@@ -51,9 +54,6 @@ async def mark_one_read(
     )
 
 
-
-
-# ✅ 2. static PATCH routes before /{notification_id}
 @notification_router.patch("/my/read-all", summary="Mark all my notifications as read")
 async def mark_all_read(
     current_user: dict = Depends(require_login),
@@ -98,21 +98,32 @@ async def delete_one(
     )
 
 
-@notification_router.delete("/my/clear-read", summary="Delete all read notifications")
+
+
+@notification_router.delete(
+        "/my/clear-read", 
+        summary="Delete all read notifications"
+)
 async def delete_all_read(
     current_user: dict = Depends(require_login),
-    service:      NotificationService = Depends(get_notification_service),
+    service: NotificationService = Depends(get_notification_service),
 ):
     return await service.delete_all_read(
         user_id    = int(current_user["sub"]),
         company_id = current_user["company_id"],
     )
 
+
+
 # ===========================================================================
 # ADMIN
 # ===========================================================================
 
-@notification_router.get("/", response_model=list[NotificationResponse], summary="[Admin] List all company notifications")
+@notification_router.get(
+    "/", 
+    response_model=list[NotificationResponse], 
+    summary="[Admin] List all company notifications"
+)
 async def get_all_notifications(
     unread_only:  bool = Query(False),
     current_user: dict = Depends(require_admin),

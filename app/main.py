@@ -17,10 +17,11 @@ from app.exceptions.exceptions import AppException
 from app.services.storage import init_cloudinary
 from app.websockets import (
     chat_handler,
-    notification_handler,
     start_chat_pubsub_listener,
-    start_notification_pubsub_listener,
 )
+# NOTE: notification_handler / start_notification_pubsub_listener removed —
+# they were a duplicate, unused pub/sub consumer on the same "notifications"
+# Redis channel already handled by start_redis_pubsub_listener (ws_manager.py).
 
 
 # from slowapi.errors import RateLimitExceeded
@@ -60,21 +61,21 @@ async def lifespan(app: FastAPI):
     init_cloudinary()
     logger.info("Cloudinary initialized")
 
-
-
-    pubsub_task = asyncio.create_task(start_chat_pubsub_listener(chat_handler))
-    notif_task = asyncio.create_task(start_redis_pubsub_listener())
-    chat_task = asyncio.create_task(start_notification_pubsub_listener(notification_handler))
+    chat_pubsub_task  = asyncio.create_task(start_chat_pubsub_listener(chat_handler))
+    notif_pubsub_task = asyncio.create_task(start_redis_pubsub_listener())
     logger.info("WebSocket listeners started")
 
     yield
 
     logger.info("Server shutting down...")
-    pubsub_task.cancel()
-    notif_task.cancel()
-    chat_task.cancel()
+    chat_pubsub_task.cancel()
+    notif_pubsub_task.cancel()
     try:
-        await asyncio.gather(pubsub_task, chat_task)
+        await asyncio.gather(
+            chat_pubsub_task,
+            notif_pubsub_task,
+            return_exceptions=True,
+        )
     except asyncio.CancelledError:
         pass
     await disconnect_redis()
@@ -112,8 +113,6 @@ app.openapi = custom_openapi
 # EXCEPTION HANDLERS
 # =============================================================================
 
-
-
 # @app.exception_handler(RateLimitExceeded)
 # async def rate_limit_handler(request, exc):
 #     logger.warning(f"SECURITY | Rate limit hit | ip:{request.client.host} | path:{request.url.path}")
@@ -122,9 +121,6 @@ app.openapi = custom_openapi
 #         content={"code": "RATE_LIMIT_EXCEEDED", "message": "Too many requests.", "action": "WAIT_AND_RETRY"},
 #         headers={"Retry-After": "60"},
 #     )
-
-
-
 
 
 @app.exception_handler(AppException)
@@ -153,7 +149,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 
 # =============================================================================
 # ROUTERS — ONE line ✅

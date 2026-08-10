@@ -7,6 +7,7 @@ from app.models.quotations.quotation import Quotation
 from app.models.quotations.quotation_item import QuotationItem
 from app.models.staffs.staff import Staff
 from app.models.users.user import User
+from app.models.quotations.quotation_item_price_tier import QuotationItemPriceTier   
 
 
 class QuotationRepository:
@@ -29,7 +30,7 @@ class QuotationRepository:
             select(Quotation)
             .where(Quotation.company_id == company_id)
             .options(
-                selectinload(Quotation.items),
+                selectinload(Quotation.items).selectinload(QuotationItem.price_tiers),   # ← fixed
                 selectinload(Quotation.customer),
             )
             .order_by(Quotation.created_at.desc())
@@ -56,8 +57,8 @@ class QuotationRepository:
                 Quotation.company_id == company_id,
             )
             .options(
-                selectinload(Quotation.items),
-                selectinload(Quotation.customer),  
+                selectinload(Quotation.items).selectinload(QuotationItem.price_tiers),   # ← fixed
+                selectinload(Quotation.customer),
             )
             .order_by(Quotation.quotation_date.desc())
         )
@@ -72,7 +73,9 @@ class QuotationRepository:
             .join(Staff, Quotation.staff_id == Staff.staff_id)
             .join(User, Staff.user_id == User.user_id)
             .where(Quotation.company_id == company_id)
-            .options(selectinload(Quotation.items))
+            .options(
+                selectinload(Quotation.items).selectinload(QuotationItem.price_tiers)   # ← fixed
+            )
             .order_by(Staff.staff_id, Quotation.quotation_date.desc())
         )
         rows = result.all()
@@ -94,6 +97,7 @@ class QuotationRepository:
 
 
 
+
     async def get_by_id(
         self, quotation_id: int, company_id: int
     ) -> Quotation | None:
@@ -104,7 +108,7 @@ class QuotationRepository:
             Quotation.company_id   == company_id,
         )
         .options(
-            selectinload(Quotation.items),
+            selectinload(Quotation.items).selectinload(QuotationItem.price_tiers),   # ← fixed
             selectinload(Quotation.customer),
         )
         )
@@ -122,8 +126,8 @@ class QuotationRepository:
                 Quotation.company_id == company_id,
             )
             .options(
-                selectinload(Quotation.items),
-                selectinload(Quotation.customer),   
+                selectinload(Quotation.items).selectinload(QuotationItem.price_tiers),   # ← fixed
+                selectinload(Quotation.customer),
             )
             .order_by(Quotation.quotation_date.desc())
         )
@@ -206,9 +210,16 @@ class QuotationRepository:
                 QuotationItem.quotation_id == quotation_id,
                 QuotationItem.company_id   == company_id,
             )
+            .options(selectinload(QuotationItem.price_tiers))
             .order_by(QuotationItem.sort_order.asc())
         )
         return result.scalars().all()
+
+
+
+
+
+
 
     async def get_item_by_id(
         self, item_id: int, company_id: int
@@ -218,8 +229,38 @@ class QuotationRepository:
                 QuotationItem.item_id    == item_id,
                 QuotationItem.company_id == company_id,
             )
+            .options(selectinload(QuotationItem.price_tiers))
         )
         return result.scalar_one_or_none()
+
+
+
+
+
+
+
+
+
+
+
+    async def replace_price_tiers(
+            self, item_id: int, tiers: list[dict]
+        ) -> None:
+            """Delete existing tiers for this item and insert the new set."""
+            await self.db.execute(
+                QuotationItemPriceTier.__table__.delete().where(
+                    QuotationItemPriceTier.item_id == item_id
+                )
+            )
+            if tiers:
+                self.db.add_all([
+                    QuotationItemPriceTier(item_id=item_id, **t) for t in tiers
+                ])
+            await self.db.commit()
+
+
+
+    
 
     async def create_item(self, data: dict) -> QuotationItem:
         item = QuotationItem(**data)
@@ -227,6 +268,9 @@ class QuotationRepository:
         await self.db.commit()
         await self.db.refresh(item)
         return item
+
+
+
 
     async def update_item(self, item: QuotationItem, data: dict) -> QuotationItem:
         for key, value in data.items():

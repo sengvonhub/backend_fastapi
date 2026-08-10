@@ -74,6 +74,11 @@ class QuotationService:
             customer_id = customer_id,
         )
 
+
+
+
+
+
     async def get_group_by_staff(self, company_id: int):
         return await self.repo.get_group_by_staff(company_id)
 
@@ -113,7 +118,8 @@ class QuotationService:
             )
         return quotation
 
-    # -----------------------------------------------------------------------
+
+     # -----------------------------------------------------------------------
     # CREATE quotation — notify assigned staff
     # -----------------------------------------------------------------------
 
@@ -142,7 +148,7 @@ class QuotationService:
         })
 
         for item in items_data:
-            await self.repo.create_item({
+            created_item = await self.repo.create_item({
                 "company_id":   company_id,
                 "quotation_id": quotation.quotation_id,
                 "sort_order":   item.sort_order,
@@ -160,6 +166,21 @@ class QuotationService:
                 "total_price":  item.quantity * item.unit_price,
                 "note":         item.note,
             })
+
+            # ── price tiers: optional alternative quantity/price options ──
+            if item.price_tiers:
+                await self.repo.replace_price_tiers(
+                    created_item.item_id,
+                    [
+                        {
+                            "quantity":    t.quantity,
+                            "unit_price":  t.unit_price,
+                            "total_price": t.quantity * t.unit_price,
+                            "sort_order":  t.sort_order,
+                        }
+                        for t in item.price_tiers
+                    ],
+                )
 
         # ✅ notify assigned staff — quotation created
         if quotation.staff_id:
@@ -179,7 +200,6 @@ class QuotationService:
                 )
 
         return await self.get_by_id(quotation.quotation_id, company_id)
-
     # -----------------------------------------------------------------------
     # UPDATE quotation
     # -----------------------------------------------------------------------
@@ -293,18 +313,14 @@ class QuotationService:
     # ADD item — recalculates quotation totals
     # -----------------------------------------------------------------------
 
+
     async def add_item(
         self, quotation_id: int, data: QuotationItemCreate, company_id: int
     ):
-        await self.get_by_id(quotation_id, company_id)
-
         quotation = await self.get_by_id(quotation_id, company_id)
 
-        
         if quotation.invoice_id is not None:
            raise HTTPException(400, "Cannot modify items on a converted quotation.")
-
-
 
         item = await self.repo.create_item({
             "company_id":   company_id,
@@ -325,9 +341,25 @@ class QuotationService:
             "note":         data.note,
         })
 
-        await self._recalc_quotation_totals(quotation_id, company_id)
-        return item
+        # ── price tiers: optional alternative quantity/price options ──────
+        if data.price_tiers:
+            await self.repo.replace_price_tiers(
+                item.item_id,
+                [
+                    {
+                        "quantity":    t.quantity,
+                        "unit_price":  t.unit_price,
+                        "total_price": t.quantity * t.unit_price,
+                        "sort_order":  t.sort_order,
+                    }
+                    for t in data.price_tiers
+                ],
+            )
 
+        await self._recalc_quotation_totals(quotation_id, company_id)
+        return await self.repo.get_item_by_id(item.item_id, company_id)
+
+    
     # -----------------------------------------------------------------------
     # UPDATE item — recalculates quotation totals
     # -----------------------------------------------------------------------
@@ -343,16 +375,33 @@ class QuotationService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Quotation item id={item_id} not found.",
             )
-
-        update_data = data.model_dump(exclude_none=True)
+        update_data = data.model_dump(exclude_none=True, exclude={"price_tiers"})   # ← exclude here
 
         quantity   = update_data.get("quantity",   item.quantity)
         unit_price = update_data.get("unit_price", item.unit_price)
         update_data["total_price"] = quantity * unit_price
 
         updated = await self.repo.update_item(item, update_data)
+
+        # ── price tiers: replace-all if provided ──────────────────────────
+        if data.price_tiers is not None:
+            await self.repo.replace_price_tiers(
+                item_id,
+                [
+                    {
+                        "quantity":    t.quantity,
+                        "unit_price":  t.unit_price,
+                        "total_price": t.quantity * t.unit_price,
+                        "sort_order":  t.sort_order,
+                    }
+                    for t in data.price_tiers
+                ],
+            )
+
         await self._recalc_quotation_totals(quotation_id, company_id)
-        return updated
+        return await self.repo.get_item_by_id(item_id, company_id)
+
+        
 
     # -----------------------------------------------------------------------
     # DELETE item — recalculates quotation totals

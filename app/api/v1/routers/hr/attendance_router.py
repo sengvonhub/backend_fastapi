@@ -65,6 +65,9 @@ async def scan_authenticate(
 
 
 
+
+
+
 @attendance_router.post(
     "/scan/check-in",
     response_model=ScanResponse,
@@ -121,9 +124,13 @@ async def scan_check_out(
 
 
 
+
+
 # ===========================================================================
 # OFFICE QR — manager generates once, prints on wall
 # ===========================================================================
+
+
 
 
 
@@ -137,6 +144,8 @@ async def get_office_qr(
     service:      AttendanceService = Depends(get_attendance_service),
 ):
     return await service.generate_office_qr()
+
+
 
 
 

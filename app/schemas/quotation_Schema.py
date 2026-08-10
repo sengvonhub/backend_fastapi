@@ -6,10 +6,23 @@ from pydantic import BaseModel, ConfigDict, model_validator
 from app.schemas.quotation_status import ArtworkStatus, DeliveryMethod, QuotationStatus
 
 
+
+class QuotationItemPriceTierCreate(BaseModel):
+    quantity: int
+    unit_price: Decimal
+    sort_order: int = 0
+
+
+class QuotationItemPriceTierResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)   
+    tier_id: int
+    quantity: int
+    unit_price: Decimal
+    total_price: Decimal
+    sort_order: int
 # ===========================================================================
 # QuotationItem
 # ===========================================================================
-
 class QuotationItemCreate(BaseModel):
     sort_order:   int
     item_name:    str
@@ -24,6 +37,7 @@ class QuotationItemCreate(BaseModel):
     quantity:     int
     unit_price:   Decimal
     note:         Optional[str] = None
+    price_tiers:  Optional[list["QuotationItemPriceTierCreate"]] = None
 
 
 class QuotationItemUpdate(BaseModel):
@@ -40,6 +54,7 @@ class QuotationItemUpdate(BaseModel):
     quantity:     Optional[int] = None
     unit_price:   Optional[Decimal] = None
     note:         Optional[str] = None
+    price_tiers:  Optional[list["QuotationItemPriceTierCreate"]] = None
 
 
 class QuotationItemResponse(BaseModel):
@@ -62,6 +77,7 @@ class QuotationItemResponse(BaseModel):
     unit_price:   Decimal
     total_price:  Decimal
     note:         Optional[str] = None
+    price_tiers:  list["QuotationItemPriceTierResponse"] = []
 
 
 # ===========================================================================
@@ -164,3 +180,8 @@ class QuotationSummaryResponse(BaseModel):
     total_sent:       int
     total_accepted:   int
     total_amount:     Decimal
+
+# //////////////////////////////////////////////////////////
+# 
+# //////////////////////////////////////////////////////////
+

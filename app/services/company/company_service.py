@@ -244,6 +244,12 @@ class CompanyService:
 
 
 
+    async def get_status_history(self, company_id: int) -> list:
+        await self.get_by_id(company_id)
+        return await self.repo.get_status_history(company_id)
+
+
+
 
     # -----------------------------------------------------------------------
     # UPDATE company info
@@ -285,6 +291,20 @@ class CompanyService:
             )
 
         return await self.repo.update(company, update_data)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     # -----------------------------------------------------------------------
     # DELETE company
@@ -328,16 +348,9 @@ class CompanyService:
     # -----------------------------------------------------------------------
 
     async def update_status(self, company_id: int, data: UpdateStatusRequest, changed_by: int):
-        company = await self.get_by_id(company_id)
-        if not company:
-            raise HTTPException(status_code=404, detail="Company not found")
-
-        old_status = company.status
-        company = await self.repo.update(company, {"status": data.status})
-
-        history = await self.repo.log_status_history(
-            company_id=company.company_id,
-            old_status=old_status,
+        company = await self.get_by_id(company_id)  # raises 404 if missing
+        _company, history = await self.repo.update_status_atomic(
+            company=company,
             new_status=data.status,
             reason=data.reason,
             changed_by=changed_by,

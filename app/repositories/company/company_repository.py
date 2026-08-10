@@ -1,5 +1,5 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import insert, select, func
 from datetime import datetime
 from app.models.company import Company
 from app.models.CompanyStatusHistory import CompanyStatusHistory
@@ -106,7 +106,7 @@ class CompanyRepository:
         reason: Optional[str],
         changed_by: int
     ):
-        query = CompanyStatusHistory.__table__.insert().values(
+        query = CompanyStatusHistory.values(
             company_id=company_id,
             old_status=old_status,
             new_status=new_status,
@@ -116,8 +116,42 @@ class CompanyRepository:
 
         result = await self.db.execute(query)
         await self.db.commit()
-        return result.fetchone()
+        return result.scalar_one()
 
+
+
+
+
+    async def update_status_atomic(
+            self,
+            company: Company,
+            new_status: str,
+            reason: Optional[str],
+            changed_by: int,
+        ) -> tuple[Company, CompanyStatusHistory]:
+            """
+            Updates company.status and inserts the history row in a single
+            transaction — either both happen or neither does.
+            """
+            old_status = company.status
+            company.status = new_status
+            self.db.add(company)
+
+            history_query = insert(CompanyStatusHistory).values(
+                company_id=company.company_id,
+                old_status=old_status,
+                new_status=new_status,
+                reason=reason,
+                changed_by=changed_by,
+            ).returning(CompanyStatusHistory)
+
+            result = await self.db.execute(history_query)
+            history = result.scalar_one()
+
+            await self.db.commit()
+            await self.db.refresh(company)
+
+            return company, history
 
     # -----------------------------------------------------------------------
     # Delete
@@ -172,3 +206,18 @@ class CompanyRepository:
             "active_users":      active_count.scalar() or 0,
             "total_roles":       role_count.scalar()  or 0,
         }
+
+
+
+    async def get_status_history(self, company_id: int) -> list[CompanyStatusHistory]:
+        result = await self.db.execute(
+            select(CompanyStatusHistory)
+            .where(CompanyStatusHistory.company_id == company_id)
+            .order_by(CompanyStatusHistory.changed_at.desc())
+        )
+        return result.scalars().all()
+
+
+
+
+

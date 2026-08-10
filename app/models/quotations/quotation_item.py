@@ -8,6 +8,7 @@ from app.db.base import Base
 if TYPE_CHECKING:
     from ..company import Company
     from .quotation import Quotation
+    from .quotation_item_price_tier import QuotationItemPriceTier
 
 
 class QuotationItem(Base):
@@ -39,3 +40,9 @@ class QuotationItem(Base):
     # Relationships
     company: Mapped["Company"] = relationship("Company", back_populates="quotation_items")
     quotation: Mapped[Optional["Quotation"]] = relationship("Quotation", back_populates="items")
+    price_tiers: Mapped[list["QuotationItemPriceTier"]] = relationship(
+        "QuotationItemPriceTier",
+        back_populates="item",
+        cascade="all, delete-orphan",
+        order_by="QuotationItemPriceTier.sort_order",
+    )
