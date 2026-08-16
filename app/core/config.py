@@ -57,7 +57,7 @@ class Settings(BaseSettings):
     # -------------------------------------------------------------------------
     # CORS
     # -------------------------------------------------------------------------
-    ALLOWED_ORIGINS: str = "http://localhost:3000"
+    ALLOWED_ORIGINS: str = "https://dashboard-thesis.sam123khmer22.workers.dev"
 
     @property
     def CORS_ORIGINS(self) -> list[str]:
