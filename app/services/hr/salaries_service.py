@@ -1,3 +1,7 @@
+import calendar
+from datetime import date
+from io import BytesIO
+
 from fastapi import HTTPException, status, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from decimal import Decimal
@@ -14,6 +18,17 @@ from app.schemas.schema import (
     MarkPaidRequest,
 )
 from app.dependencies import get_db, get_redis_client
+from reportlab.lib.pagesizes import letter
+
+from reportlab.lib import colors
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet
+
+
+
+
+
+
 
 
 class SalaryService:
@@ -24,8 +39,8 @@ class SalaryService:
         redis_client: redis.Redis,
     ):
         self.repo       = SalaryRepository(db)
-        self.staff_repo = StaffRepository(db)          # ✅ to get staff.user_id
-        self.notif      = NotificationService(         # ✅ for real-time push
+        self.staff_repo = StaffRepository(db)         
+        self.notif      = NotificationService(   
             db           = db,
             redis_client = redis_client,
         )
@@ -135,6 +150,11 @@ class SalaryService:
             )
 
         return salary
+
+
+
+
+
 
     # -----------------------------------------------------------------------
     # UPDATE salary
@@ -297,8 +317,74 @@ class SalaryService:
                 )
 
         return adjustment
+
+
+    async def generate_monthly_report(
+        self, company_id: int, year: int, month: int
+        ) -> bytes:
+        if not (1 <= month <= 12):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="month must be between 1 and 12.",
+            )
+
+        start = date(year, month, 1)
+        last_day = calendar.monthrange(year, month)[1]
+        end = date(year, month, last_day)
+
+        rows = await self.repo.get_by_period(company_id, start, end)
+
+        buffer = BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=letter)
+        styles = getSampleStyleSheet()
+        elements = [
+            Paragraph(f"Payroll Report — {start.strftime('%B %Y')}", styles["Title"]),
+            Spacer(1, 12),
+        ]
+
+        table_data = [["Staff", "Period", "Base", "Bonus", "Deductions", "Net", "Status"]]
+        total_net = Decimal("0")
+        for salary, staff, user in rows:
+            table_data.append([
+                user.full_name,
+                f"{salary.pay_period_start} – {salary.pay_period_end}",
+                f"{salary.base_salary:,.2f}",
+                f"{salary.bonus:,.2f}",
+                f"{salary.deductions:,.2f}",
+                f"{salary.net_salary:,.2f}",
+                salary.payment_status.value,
+            ])
+            total_net += salary.net_salary
+
+        if len(table_data) == 1:
+            elements.append(Paragraph("No salary records found for this period.", styles["Normal"]))
+        else:
+            table_data.append(["", "", "", "", "Total:", f"{total_net:,.2f}", ""])
+            table = Table(table_data, repeatRows=1)
+            table.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f1f5f9")),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTNAME", (0, -1), (-1, -1), "Helvetica-Bold"),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#d1d5db")),
+                ("FONTSIZE", (0, 0), (-1, -1), 9),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("ALIGN", (2, 0), (-1, -1), "RIGHT"),
+            ]))
+            elements.append(table)
+
+        doc.build(elements)
+        pdf_bytes = buffer.getvalue()
+        buffer.close()
+        return pdf_bytes
+
+
+
     
     
+    
+
+
+
 
     # -----------------------------------------------------------------------
     # DELETE adjustment — notify staff reversal

@@ -19,13 +19,7 @@ from app.websockets import (
     chat_handler,
     start_chat_pubsub_listener,
 )
-# NOTE: notification_handler / start_notification_pubsub_listener removed —
-# they were a duplicate, unused pub/sub consumer on the same "notifications"
-# Redis channel already handled by start_redis_pubsub_listener (ws_manager.py).
 
-
-# from slowapi.errors import RateLimitExceeded
-# from slowapi.middleware import SlowAPIMiddleware
 
 
 from app.middleware import (
@@ -34,8 +28,6 @@ from app.middleware import (
     ErrorMiddleware,
     setup_cors,
 )
-from fastapi.middleware.cors import CORSMiddleware
-
 from app.websockets.ws_manager import start_redis_pubsub_listener
 
 # =============================================================================
@@ -141,14 +133,9 @@ app.add_middleware(ErrorMiddleware)
 app.add_middleware(LoggingMiddleware)
 app.add_middleware(AuthMiddleware)
 # app.add_middleware(SlowAPIMiddleware)
-# setup_cors(app)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+setup_cors(app)
+
+
 
 # =============================================================================
 # ROUTERS — ONE line ✅

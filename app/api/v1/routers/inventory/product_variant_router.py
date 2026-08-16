@@ -10,7 +10,6 @@ from app.utils.auth import require_login, require_manager
 
 variant_router = APIRouter(prefix="/products/{product_id}/variants",tags=["Product Variants"],)
 
-
 @variant_router.get("/", response_model=list[ProductVariantResponse])
 
 

@@ -55,6 +55,15 @@ class Settings(BaseSettings):
     CLOUDINARY_API_KEY:    str
     CLOUDINARY_API_SECRET: str
     # -------------------------------------------------------------------------
+    # CORS
+    # -------------------------------------------------------------------------
+    ALLOWED_ORIGINS: str = "http://localhost:3000"
+
+    @property
+    def CORS_ORIGINS(self) -> list[str]:
+        return [origin.strip() for origin in self.ALLOWED_ORIGINS.split(",") if origin.strip()]
+
+    # -------------------------------------------------------------------------
     # Office GPS
     # -------------------------------------------------------------------------
     OFFICE_ID:             str

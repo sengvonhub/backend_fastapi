@@ -352,6 +352,10 @@ class StaffRoleCreate(BaseModel):
     is_manager:  bool           = False
 
 
+
+
+
+
 class StaffRoleUpdate(BaseModel):
     role_name:   Optional[str]     = Field(None, min_length=2, max_length=100)
     description: Optional[str]     = Field(None, max_length=500)
@@ -519,6 +523,13 @@ class StaffRegisterRequest(BaseModel):
 # SALARY SCHEMAS
 # ============================================================================
 
+
+
+
+
+
+
+
 class SalaryBase(BaseModel):
     staff_id:         int
     managed_by:       Optional[int]     = None
@@ -541,6 +552,17 @@ class SalaryBase(BaseModel):
             deductions = self.deductions or Decimal("0")
             self.net_salary = self.base_salary + bonus - deductions
         return self
+
+
+
+
+
+
+
+
+
+
+
 
 
 class SalaryCreate(SalaryBase):
@@ -1009,6 +1031,9 @@ class SupplierProductPriceBase(BaseModel):
     variant_id:  int
     unit_price:  Decimal = Field(..., ge=0)
     note:        Optional[str] = Field(None, max_length=255)
+
+
+    
 
 class SupplierProductPriceCreate(SupplierProductPriceBase):
     pass

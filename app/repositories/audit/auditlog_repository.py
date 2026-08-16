@@ -6,9 +6,7 @@ from sqlalchemy.orm import selectinload
 from typing import Optional
 class AuditLogRepository:
       def __init__(self, db: AsyncSession):
-            self.db = db
-
-            
+            self.db = db        
       async def log(
                   self, 
                   user_id: int,

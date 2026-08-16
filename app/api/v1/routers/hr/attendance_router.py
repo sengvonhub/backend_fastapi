@@ -18,15 +18,14 @@ from app.utils.authenticate_for_scan import scan_auth_service
 from app.dependencies import get_db
 from app.utils.auth import require_login, require_manager
 from app.exceptions.exceptions import HTTPException
-
 attendance_router = APIRouter(prefix="/attendance", tags=["Attendance"])
+
+
 
 # ===========================================================================
 # STEP 1 — Re-enter password → get scan_token (15 min)
 # Requires valid access_token (require_login)
 # ===========================================================================
-
-
 
 
 @attendance_router.post(
@@ -38,30 +37,26 @@ async def scan_authenticate(
     data:         ScanAuthRequest,
     current_user: dict         = Depends(require_login),
     db:           AsyncSession = Depends(get_db),
-):
-    
+): 
     staff_id = current_user.get("staff_id")
     if not staff_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only staff accounts can authenticate for scanning.",
         )
-      
     return await scan_auth_service(
         password = data.password,
         staff_id = staff_id,
         db       = db,
     )
 
-    
-
-
-
-
 # ===========================================================================
 # STEP 2 — Scan office QR to check in
 # No JWT needed — scan_token carries identity
 # ===========================================================================
+
+
+
 
 
 
@@ -240,13 +235,6 @@ async def get_my_monthly_stats(
 
 
 
-
-
-
-
-
-
-
 @attendance_router.get(
     "/summary/today",
     summary="[Manager] Today attendance summary",
@@ -255,17 +243,9 @@ async def today_summary(
     current_user: dict             = Depends(require_manager),
     service:      AttendanceService = Depends(get_attendance_service),
 ):
-    # ✅ pass company_id
     return await service.get_today_summary(
         company_id=current_user["company_id"]
     )
-
-
-
-
-
-
-
 
 
 

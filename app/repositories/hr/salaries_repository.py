@@ -55,6 +55,7 @@ class SalaryRepository:
 
 
 
+
     # -----------------------------------------------------------------------
     # GROUP salaries by staff + user
     # -----------------------------------------------------------------------
@@ -190,6 +191,31 @@ class SalaryRepository:
         await self.db.commit()
         await self.db.refresh(adjustment)
         return adjustment
+    
+
+
+
+    async def get_by_period(
+        self, company_id: int, start: date, end: date
+    ) -> list[tuple[Salary, Staff, User]]:
+        result = await self.db.execute(
+            select(Salary, Staff, User)
+            .join(Staff, Salary.staff_id == Staff.staff_id)
+            .join(User, Staff.user_id == User.user_id)
+            .where(
+                Salary.company_id == company_id,
+                Salary.pay_period_start <= end,
+                Salary.pay_period_end >= start,
+            )
+            .order_by(Staff.staff_id, Salary.pay_period_start)
+        )
+        return result.all()
+
+
+
+
+
+
     
 
 

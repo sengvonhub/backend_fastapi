@@ -1,5 +1,9 @@
+from io import BytesIO
+
 from fastapi import APIRouter, Depends, status, Query
 from typing import Optional
+
+from fastapi.responses import StreamingResponse
 
 from app.schemas.schema import (
     SalaryCreate,
@@ -33,6 +37,7 @@ async def get_my_salaries(
         staff_id   = current_user["staff_id"],
         company_id = current_user["company_id"],
     )
+
 # =================================================
 # by staff
 # =================================================
@@ -68,8 +73,6 @@ async def group_salaries_by_staff(
         return await service.get_group_by_staff(
             company_id=current_user["company_id"]
 )
-
-
 
 # ===========================================================================
 # MANAGER — manage all salaries
@@ -110,9 +113,38 @@ async def get_summary(
     )
 
 # ======================================================================
-# 
+# STATIC PATHS MUST COME BEFORE /{salary_id} — moved here
 # ======================================================================
 
+@salary_router.get(
+    "/report",
+    summary="[Manager] Download monthly payroll report (PDF)",
+)
+async def get_monthly_report(
+    year:         int = Query(..., ge=2000, le=2100),
+    month:        int = Query(..., ge=1, le=12),
+    current_user: dict = Depends(require_manager),
+    service:      SalaryService = Depends(get_salary_service),
+):
+    pdf_bytes = await service.generate_monthly_report(
+        company_id = current_user["company_id"],
+        year       = year,
+        month      = month,
+    )
+    filename = f"payroll-report-{year}-{month:02d}.pdf"
+    return StreamingResponse(
+        BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+
+    
+
+# ======================================================================
+# 
+# ======================================================================
 
 @salary_router.get(
     "/{salary_id}",
@@ -129,12 +161,9 @@ async def get_salary(
         company_id = current_user["company_id"],
     )
 
-
-
 # ======================================================================
 # 
 # ======================================================================
-
 
 @salary_router.post(
     "/",
@@ -153,10 +182,11 @@ async def create_salary(
     )
 
 
+
+
 # ======================================================================
 # 
 # ======================================================================
-
 
 @salary_router.patch(
     "/{salary_id}",
@@ -200,7 +230,6 @@ async def mark_paid(
 # 
 # ======================================================================
 
-
 @salary_router.delete(
     "/{salary_id}",
     summary="[Manager] Delete salary (only if not paid)",
@@ -214,7 +243,6 @@ async def delete_salary(
         salary_id  = salary_id,
         company_id = current_user["company_id"],
     )
-
 
 # ===========================================================================
 # ADJUSTMENTS
@@ -239,7 +267,6 @@ async def get_adjustments(
 # 
 # ======================================================================
 
-
 @salary_router.post(
     "/adjustments",
     response_model=SalaryAdjustmentResponse,
@@ -259,7 +286,6 @@ async def create_adjustment(
         company_id       = current_user["company_id"],
         manager_staff_id = int(current_user["sub"]),
     )
-
 
 # ======================================================================
 # 

@@ -38,6 +38,8 @@ class SystemSettingRepository:
         return result.scalar_one_or_none()
     
 
+
+
     async def bulk_create(
         self,
         data:       list[dict],
@@ -52,6 +54,9 @@ class SystemSettingRepository:
         for s in settings:
             await self.db.refresh(s)
         return settings
+
+
+
 
 
 
