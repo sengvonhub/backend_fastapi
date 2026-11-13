@@ -1,11 +1,16 @@
 from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
 
+    # -------------------------------------------------------------------------
+
     DEBUG: bool = True
+
     # -------------------------------------------------------------------------
     # Environment
     # -------------------------------------------------------------------------
+
     # ENVIRONMENT: str = "production"   # ✅ add this — controls seed
+
     ENVIRONMENT: str = "development"
 
     # -------------------------------------------------------------------------
@@ -35,6 +40,7 @@ class Settings(BaseSettings):
     # -------------------------------------------------------------------------
     # JWT tokens
     # -------------------------------------------------------------------------
+
     SECRET_KEY:                  str
     ALGORITHM:                   str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 8   # 8 hours
@@ -45,7 +51,8 @@ class Settings(BaseSettings):
     # -------------------------------------------------------------------------
     # Scan token (attendance QR)
     # -------------------------------------------------------------------------
-    SCAN_SECRET:               str
+
+    SCAN_SECRET:               str = "c18fc3c3b01123769931593b62cfaaf6"
     SCAN_TOKEN_EXPIRE_MINUTES: int = 15          # 15 minutes
 
     # ------------------------------------------------------------------------
@@ -57,6 +64,7 @@ class Settings(BaseSettings):
     # -------------------------------------------------------------------------
     # CORS
     # -------------------------------------------------------------------------
+
     ALLOWED_ORIGINS: str = "https://dashboard-thesis.sam123khmer22.workers.dev"
 
     @property
@@ -66,16 +74,19 @@ class Settings(BaseSettings):
     # -------------------------------------------------------------------------
     # Office GPS
     # -------------------------------------------------------------------------
+
+
     OFFICE_ID:             str
     OFFICE_LATITUDE: float = 11.5016621
     OFFICE_LONGITUDE: float = 104.8878919
     OFFICE_RADIUS_METERS:  int   = 5000  
     OFFICE_OPEN_TIME:  str = "09:00"   # office opens
-    OFFICE_CLOSE_TIME: str = "17:00" 
+    OFFICE_CLOSE_TIME: str = "17:00"
 
     # -------------------------------------------------------------------------
     # Properties
     # -------------------------------------------------------------------------
+    
     @property
     def REDIS_URL(self) -> str:
         if self.REDIS_PASSWORD:

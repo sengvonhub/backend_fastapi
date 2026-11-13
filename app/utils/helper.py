@@ -83,12 +83,13 @@ def is_mobile(request: Request) -> bool:
 
 
 def set_refresh_cookie(response: Response, token: str):
+    is_prod = settings.ENVIRONMENT == "production"
     response.set_cookie(
         key="refresh_token",
         value=token,
         httponly=True,
-        secure=settings.ENVIRONMENT == "production",  # ← False on localhost
-        samesite="lax",
+        secure=is_prod,  # ← False on localhost
+        samesite="none" if is_prod else "lax",  # cross-site (Cloudflare <-> Render) needs "none"
         max_age=60 * 60 * 24 * 30,
         path="/auth/refresh",
     )

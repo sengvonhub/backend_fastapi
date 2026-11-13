@@ -24,8 +24,6 @@ department_router = APIRouter(prefix="/departments", tags=["Departments"])
 # ===========================================================================
 
 
-
-
 @role_router.post(
     "/", 
     response_model=RoleResponse, 
@@ -41,8 +39,6 @@ async def create_role(
     role = await service.create_role(data, company_id=current_user["company_id"])
     await cache.delete(f"roles:{current_user['company_id']}")
     return role
-
-
 
 
 
@@ -174,8 +170,6 @@ async def create_user(
     )
     await cache.delete_pattern(f"users:{current_user['company_id']}:*")
     return user
-
-
 
 
 
