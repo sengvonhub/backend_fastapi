@@ -1,7 +1,6 @@
     git init |=>
     git config --global --add safe.directory E:/FlutterProject/last_year_app/backend_app |=> Just run exactly what Git told you
 
-
     {
     git config --global
     Sets a configuration for all Git projects of your user on this computer.

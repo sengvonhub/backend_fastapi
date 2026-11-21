@@ -26,13 +26,16 @@ alembic downgrade base                        |=> Reset ALL migrations (⚠️ d
 
 ////////////////////////////////////////////////////////////////////////////////////////
 
-docker-compose exec app alembic revision --autogenerate -m "fix user department models" => 
+docker-compose exec app alembic revision --autogenerate -m "fix user department models" |=> 
 
-docker-compose exec app alembic upgrade head
+docker-compose exec app alembic upgrade head  |=>
 
-docker compose exec app alembic current
+docker compose exec app alembic current    |=>
 
 //////////////////////////////////////////////////////////////////////////////////////
+
+docker-compose restart app
+
 docker-compose restart app
 
 ----------------------------------------
@@ -51,6 +54,7 @@ DROP TABLE staff_roles CASCADE; |=>
 
 
 ============================for add new enum column=================
+
 docker-compose exec app alembic revision --autogenerate -m |=>
 SELECT unnest(enum_range(NULL::notificationtype)); |=> check unset
 docker-compose exec app alembic downgrade 047132d5a528  |=> down grade
@@ -60,17 +64,19 @@ docker-compose exec app alembic upgrade head  |=>
 
 
 INSERT INTO staff_roles (role_name, description, base_salary, is_manager, created_at)
+
 VALUES ('Manager', 'Test Role', 500, true, now());
 
 SELECT staff_role_id, role_name, is_manager FROM staff_roles;
 
 ================================
 
-docker compose exec app alembic revision --autogenerate -m "fix created_at server_default"
-docker compose exec app alembic upgrade head
+docker compose exec app alembic revision --autogenerate -m "fix created_at server_default"  |=>
+docker compose exec app alembic upgrade head                                                |=>
 
 
 =============================
+
 
 ALTER TABLE roles DROP CONSTRAINT roles_role_name_key;
 ALTER TABLE roles ADD CONSTRAINT uq_roles_company_role
@@ -85,9 +91,9 @@ docker compose exec app alembic upgrade head
 ALTER TYPE notificationtype ADD VALUE 'success'
 
 
-////////////////
-SELECT staff_id, avatar_url, avatar_public_id FROM staff WHERE company_id = 5;
+////////////////////////////////////////////////
 
+SELECT staff_id, avatar_url, avatar_public_id FROM staff WHERE company_id = 5;
 
 ///////////////////////////////////////////////
 
@@ -174,31 +180,16 @@ UPDATE product_variants
 SET stock_quantity = 265
 WHERE variant_id = 2;
 
-
 ////////////////////////////////////////////////////////////////
 
 
 SELECT movement_id, qty_in, qty_out, opening_balance, balance_quantity, movement_type, date
 FROM stock_movements WHERE variant_id = 2 ORDER BY date, movement_id;
-
 SELECT stock_quantity FROM product_variants WHERE variant_id = 2;
 
 
+===============================================================
 
+docker exec postgres_db pg_dump -U $POSTGRES_USER $POSTGRES_DB > backup.sql  |=>
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+===============================================================

@@ -1,4 +1,6 @@
+=======================================================================
 // Login — gets both tokens
+=======================================================================
 final res = await http.post(Uri.parse("$base/auth/login"),
     body: jsonEncode({"email": email, "password": password}));
 final data = jsonDecode(res.body);
@@ -6,7 +8,11 @@ final data = jsonDecode(res.body);
 await storage.write(key: "access_token",  value: data["access_token"]);
 await storage.write(key: "refresh_token", value: data["refresh_token"]);
 
+
+=======================================================================
 // Refresh — send refresh_token in body
+=======================================================================
+
 final refreshToken = await storage.read(key: "refresh_token");
 final res = await http.post(Uri.parse("$base/auth/refresh"),
     body: jsonEncode({"refresh_token": refreshToken}));
@@ -20,13 +26,19 @@ await storage.write(key: "refresh_token", value: data["refresh_token"]);
 // Without this interceptor → user gets 401 error and nothing happens
 // With this interceptor    → refresh happens silently, user notices nothing
 
+=======================================================================
+
 api.interceptors.response.use(
     (response) => response,  // success → pass through
 
     async (error) => {
         const original = error.config
 
+
+        =======================================================================
         // Step 1: detect expired access token
+        =======================================================================
+
         if (error.response?.status === 401 && !original._retry) {
             original._retry = true
 
@@ -36,15 +48,28 @@ api.interceptors.response.use(
                     { withCredentials: true }
                 )
 
+
+
+                =======================================================================
                 // Step 3: save new access token
+                =======================================================================
+
                 localStorage.setItem("access_token", data.access_token)
 
+
+                =======================================================================
                 // Step 4: retry original request with new token
+                =======================================================================
+
                 original.headers.Authorization = `Bearer ${data.access_token}`
                 return api(original)
 
             } catch {
+
+                =======================================================================
                 // Refresh also expired → force login
+                =======================================================================
+                
                 localStorage.clear()
                 window.location.href = "/login"
             }

@@ -112,6 +112,7 @@ class AuthService:
             role          = user.role.role_name if user.role else None,
             department_id = user.department_id,
             status        = user.status.value,
+            created_at   = user.created_at,
         )
 
 

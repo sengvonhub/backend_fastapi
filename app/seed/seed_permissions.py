@@ -8,6 +8,11 @@ from app.models.permission.permission import Permission
 from app.core.security import hash_password
 from app.core.permission import Permissions
 
+
+# ==========================================================================
+# 
+# ==========================================================================
+
 ALL_PERMISSIONS = [
     Permissions.READ_OWN_PROFILE,
     Permissions.VIEW_USERS,
@@ -27,6 +32,10 @@ ALL_PERMISSIONS = [
     Permissions.MANAGE_ROLES, 
     Permissions.MANAGE_DEPARTMENTS,
 ]
+
+# ==========================================================================
+# 
+# ==========================================================================
 
 DEFAULT_ROLE_PERMISSIONS = {
     "admin": ALL_PERMISSIONS,
@@ -55,6 +64,10 @@ DEFAULT_ROLE_PERMISSIONS = {
 
 }
 
+# ==========================================================================
+# 
+# ==========================================================================
+
 
 async def seed_permissions(db: AsyncSession) -> None:
     """Idempotent — insert any Permissions.* not already in the DB."""
@@ -66,12 +79,23 @@ async def seed_permissions(db: AsyncSession) -> None:
         await db.commit()
         print(f"✅ Synced {len(missing)} new permission(s): {missing}")
 
+# ==========================================================================
+# 
+# ==========================================================================
 
 async def seed_data(db: AsyncSession):
+
+    # ==========================================================================
     # 1. Permission catalog — must exist before roles reference it
+    # ==========================================================================
+    
     await seed_permissions(db)
 
+
+    # ==========================================================================
     # 2. Company
+    # ==========================================================================
+
     result = await db.execute(select(Company).where(Company.company_code == "DEFAULT"))
     company = result.scalar_one_or_none()
     if not company:
@@ -88,7 +112,11 @@ async def seed_data(db: AsyncSession):
     else:
         print("⏭ Company already exists")
 
+
+    # ==========================================================================
     # 3. Roles — WITH permissions attached
+    # ==========================================================================
+
     all_perms_result = await db.execute(select(Permission))
     all_perms = {p.code: p for p in all_perms_result.scalars().all()}
 
@@ -108,7 +136,11 @@ async def seed_data(db: AsyncSession):
     await db.commit()
     print("✅ Roles seeded with permissions")
 
+
+    # ==========================================================================
     # 4. Department
+    # ==========================================================================
+
     result = await db.execute(
         select(Department).where(Department.department_name == "IT", Department.company_id == company.company_id)
     )
@@ -120,9 +152,20 @@ async def seed_data(db: AsyncSession):
         await db.refresh(dept)
         print("✅ Department created")
 
+
+
+    # =========================================================================
     # 5. Superuser account
+    # =========================================================================
+
+
     result = await db.execute(select(User).where(User.username == "admin"))
     admin = result.scalar_one_or_none()
+
+    # ==========================================================================
+    # 
+    # ==========================================================================
+
     if not admin:
         result = await db.execute(
             select(Role).where(Role.role_name == "superuser", Role.company_id == company.company_id)

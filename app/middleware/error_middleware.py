@@ -8,13 +8,17 @@ from app.exceptions.exceptions import AppException
 class ErrorMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next):
-        if request.scope["type"] == "websocket":   # ✅
+        if request.scope["type"] == "websocket":  
             return await call_next(request)
         try:
             response = await call_next(request)
             return response
         except AppException as exc:
+
+            # =======================================================
             # Handle custom app exceptions
+            # =======================================================
+            
             request_id = getattr(request.state, "request_id", "unknown")
             logger.warning(f"[{request_id}] APP EXCEPTION: {exc.detail}")
             error_response = ErrorResponse(
@@ -24,7 +28,11 @@ class ErrorMiddleware(BaseHTTPMiddleware):
             )
             return JSONResponse(status_code=exc.status_code, content=error_response.dict())
         except Exception as exc:
+
+             # =======================================================
             # Handle unexpected exceptions
+             # =======================================================
+
             request_id = getattr(request.state, "request_id", "unknown")
             logger.exception(f"[{request_id}] UNHANDLED EXCEPTION: {exc}")
             return JSONResponse(

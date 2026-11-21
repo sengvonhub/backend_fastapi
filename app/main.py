@@ -7,27 +7,15 @@ from app.models import *
 from app.api.v1.routers import api_router   
 from app.db.redis import connect_redis, disconnect_redis, check_redis
 from app.db.session import AsyncSessionLocal
-from app.seed import seed_permissions
-# from app.seed.seed import seed_data
+from app.seed.seed_permissions import seed_permissions, seed_data
 from app.core.config import settings
 from app.core.rate_limit import ip_limiter
 from app.core.logger import logger
 from app.schemas.schema import ErrorResponse
 from app.exceptions.exceptions import AppException
 from app.services.storage import init_cloudinary
-from app.websockets import (
-    chat_handler,
-    start_chat_pubsub_listener,
-)
-
-
-
-from app.middleware import (
-    AuthMiddleware,
-    LoggingMiddleware,
-    ErrorMiddleware,
-    setup_cors,
-)
+from app.websockets import ( chat_handler, start_chat_pubsub_listener)
+from app.middleware import (AuthMiddleware,LoggingMiddleware, ErrorMiddleware,setup_cors)
 from app.websockets.ws_manager import start_redis_pubsub_listener
 
 # =============================================================================
@@ -37,14 +25,24 @@ from app.websockets.ws_manager import start_redis_pubsub_listener
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Server starting...")
+
+    # ----------------------------------------------------
+    # Seed permissions and data in development environment
+    # ----------------------------------------------------
+
     if settings.ENVIRONMENT == "development":
         async with AsyncSessionLocal() as db:
 
             await seed_permissions(db)
-
+            await seed_data(db)
 
     await connect_redis()
     redis_ok = await check_redis()
+
+    # ----------------------------------------------------
+    # Check Redis connection
+    # ----------------------------------------------------
+
     if redis_ok:
         logger.info("Redis connected successfully")
     else:
@@ -56,6 +54,11 @@ async def lifespan(app: FastAPI):
     chat_pubsub_task  = asyncio.create_task(start_chat_pubsub_listener(chat_handler))
     notif_pubsub_task = asyncio.create_task(start_redis_pubsub_listener())
     logger.info("WebSocket listeners started")
+
+
+    # ----------------------------------------------------
+    # Check Redis connection
+    # ----------------------------------------------------
 
     yield
 
@@ -82,7 +85,6 @@ app = FastAPI(
     lifespan=lifespan,
     swagger_ui_parameters={"persistAuthorization": True},
 )
-
 app.state.limiter = ip_limiter
 
 # =============================================================================
@@ -114,6 +116,9 @@ app.openapi = custom_openapi
 #         headers={"Retry-After": "60"},
 #     )
 
+# ============================================================================
+# 
+# ============================================================================
 
 @app.exception_handler(AppException)
 async def app_exception_handler(request, exc: AppException):
@@ -135,11 +140,10 @@ app.add_middleware(AuthMiddleware)
 # app.add_middleware(SlowAPIMiddleware)
 setup_cors(app)
 
-
-
 # =============================================================================
 # ROUTERS — ONE line ✅
 # =============================================================================
+
 app.include_router(api_router, prefix="/api/v1")
 
 # =============================================================================
