@@ -1,11 +1,11 @@
-# Environment
+# Environment (secrets: never commit)
 .env
 .env.*
 !.env.example
 
 # Python
 __pycache__/
-*.pyc
+*.py[cod]
 *.pyo
 *.pyd
 *.egg-info/
@@ -21,9 +21,6 @@ env/
 # Logs
 logs/
 *.log
-
-# Docker
-.dockerignore
 
 # Testing
 .pytest_cache/
@@ -49,3 +46,9 @@ media/
 
 # Docs (your doces folder)
 doces/
+
+# Deploy keys and backups (never commit)
+*.pem
+*.key
+*.sql
+*.sql.gz
